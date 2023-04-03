@@ -542,6 +542,15 @@ public class CoreOptions implements Serializable {
                     .defaultValue(1024)
                     .withDescription("Read batch size for orc and parquet.");
 
+    @Deprecated
+    @ExcludeFromDocumentation("For compatibility with older versions")
+    public static final ConfigOption<Boolean> APPEND_ONLY_ASSERT_DISORDER =
+            key("append-only.assert-disorder")
+                    .booleanType()
+                    .defaultValue(true)
+                    .withDescription(
+                            "Should assert disorder files, this just for compatibility with older versions.");
+
     public static final ConfigOption<StreamReadType> STREAMING_READ_FROM =
             key("streaming-read-from")
                     .enumType(StreamReadType.class)
