@@ -559,10 +559,19 @@ public class CoreOptions implements Serializable {
                     .withDescription(
                             "Full compaction will be constantly triggered after delta commits.");
 
-    public static final ConfigOption<StreamReadType> STREAMING_READ_FROM =
-            key("streaming-read-from")
+    @ExcludeFromDocumentation("Internal use only")
+    public static final ConfigOption<Boolean> STREAMING_COMPACT =
+            key("streaming-compact")
+                    .booleanType()
+                    .defaultValue(false)
+                    .withDescription(
+                            "Only used to force TableScan to construct 'ContinuousCompactorStartingScanner' and "
+                                    + "'ContinuousCompactorFollowUpScanner' for dedicated streaming compaction job.");
+
+    public static final ConfigOption<StreamReadType> LOG_READ_FROM =
+            key("log.read-from")
                     .enumType(StreamReadType.class)
-                    .defaultValue(StreamReadType.FILE_STORE)
+                    .noDefaultValue()
                     .withDescription(
                             Description.builder()
                                     .text("Read the store type of the paimon table.")
@@ -570,10 +579,10 @@ public class CoreOptions implements Serializable {
                                     .linebreak()
                                     .text("Possible values:")
                                     .linebreak()
-                                    .list(text("\"file-store\": Will read from the file store"))
+                                    .list(text("\"file\": Will read from the file store"))
                                     .list(
                                             text(
-                                                    "\"log-store\":Will read from the file store, the user must configure log.system"))
+                                                    "\"log-system\":Will read from the file store, the user must configure log.system"))
                                     .build());
 
     private final Options options;
@@ -831,7 +840,7 @@ public class CoreOptions implements Serializable {
     }
 
     public static StreamReadType streamReadType(Options options) {
-        return options.get(STREAMING_READ_FROM);
+        return options.get(LOG_READ_FROM);
     }
 
     /** Specifies the merge engine for table with primary key. */
@@ -1068,8 +1077,8 @@ public class CoreOptions implements Serializable {
 
     /** Specifies the type for streaming read. */
     public enum StreamReadType implements DescribedEnum {
-        LOG_STORE("log-store", "Read from log store such as kafka."),
-        FILE_STORE("file-store", "Read from file store.");
+        LOG_SYSTEM("log-system", "Read from log system such as kafka."),
+        FILE("file", "Read from file store.");
 
         private final String value;
         private final String description;
