@@ -146,7 +146,7 @@ public class FlinkSourceBuilder {
             StartupMode startupMode = CoreOptions.startupMode(conf);
             StreamReadType streamReadType = CoreOptions.streamReadType(conf);
 
-            // no log system or
+            // no log system or log system is configured but streamReadType is FILE
             if (logSourceProvider == null || streamReadType == FILE) {
                 return buildContinuousFileSource();
             } else {

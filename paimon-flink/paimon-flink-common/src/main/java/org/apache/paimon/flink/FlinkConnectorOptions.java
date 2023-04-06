@@ -58,7 +58,7 @@ public class FlinkConnectorOptions {
                                     .list(
                                             TextElement.text(
                                                     "\"kafka\": Kafka log system, the data is double written to file"
-                                                            + " store and kafka, the user can configure log.read-from to determine the store of streaming reads. For example, log.read-from=log-system will read data from kafka and log.read-from=file will read from the file store."))
+                                                            + " store and kafka, the user can configure streaming-read-from to determine the store of streaming reads. For example, streaming-read-from=log-system will read data from kafka and streaming-read-from=file will read from the file store."))
                                     .build());
 
     public static final ConfigOption<Integer> SINK_PARALLELISM =

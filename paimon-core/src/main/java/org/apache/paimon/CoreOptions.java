@@ -568,8 +568,8 @@ public class CoreOptions implements Serializable {
                             "Only used to force TableScan to construct 'ContinuousCompactorStartingScanner' and "
                                     + "'ContinuousCompactorFollowUpScanner' for dedicated streaming compaction job.");
 
-    public static final ConfigOption<StreamReadType> LOG_READ_FROM =
-            key("log.read-from")
+    public static final ConfigOption<StreamReadType> STREAMING_READ_FROM =
+            key("streaming-read-from")
                     .enumType(StreamReadType.class)
                     .noDefaultValue()
                     .withDescription(
@@ -579,10 +579,14 @@ public class CoreOptions implements Serializable {
                                     .linebreak()
                                     .text("Possible values:")
                                     .linebreak()
-                                    .list(text("\"file\": Will read from the file store"))
                                     .list(
                                             text(
-                                                    "\"log-system\":Will read from the file store, the user must configure log.system"))
+                                                    StreamReadType.FILE.getValue()
+                                                            + ": Will read from the file store"))
+                                    .list(
+                                            text(
+                                                    StreamReadType.LOG_SYSTEM.getValue()
+                                                            + ":Will read from the log store, the user must configure log.system"))
                                     .build());
 
     private final Options options;
@@ -840,7 +844,7 @@ public class CoreOptions implements Serializable {
     }
 
     public static StreamReadType streamReadType(Options options) {
-        return options.get(LOG_READ_FROM);
+        return options.get(STREAMING_READ_FROM);
     }
 
     /** Specifies the merge engine for table with primary key. */
@@ -1096,6 +1100,10 @@ public class CoreOptions implements Serializable {
         @Override
         public InlineElement getDescription() {
             return text(description);
+        }
+
+        public String getValue() {
+            return value;
         }
 
         @VisibleForTesting

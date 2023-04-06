@@ -54,7 +54,7 @@ import java.util.Set;
 
 import static org.apache.paimon.CoreOptions.LOG_CHANGELOG_MODE;
 import static org.apache.paimon.CoreOptions.LOG_CONSISTENCY;
-import static org.apache.paimon.CoreOptions.LOG_READ_FROM;
+import static org.apache.paimon.CoreOptions.STREAMING_READ_FROM;
 import static org.apache.paimon.flink.FlinkConnectorOptions.LOG_SYSTEM;
 import static org.apache.paimon.flink.FlinkConnectorOptions.NONE;
 import static org.apache.paimon.flink.LogicalTypeConversion.toLogicalType;
@@ -125,7 +125,7 @@ public abstract class AbstractFlinkTableFactory
 
     private static void validateFileStoreContinuous(Options options) {
         LogChangelogMode changelogMode = options.get(LOG_CHANGELOG_MODE);
-        StreamReadType streamReadType = options.get(LOG_READ_FROM);
+        StreamReadType streamReadType = options.get(STREAMING_READ_FROM);
         if (changelogMode == LogChangelogMode.UPSERT) {
             throw new ValidationException(
                     "File store continuous reading dose not support upsert changelog mode.");
