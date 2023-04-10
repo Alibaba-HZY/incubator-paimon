@@ -582,7 +582,7 @@ public class CoreOptions implements Serializable {
                                     .list(
                                             text(
                                                     StreamingReadMode.FILE.getValue()
-                                                            + ": Will read from the file store"))
+                                                            + ": Reads from the data of table file store."))
                                     .list(
                                             text(
                                                     StreamingReadMode.LOG.getValue()
