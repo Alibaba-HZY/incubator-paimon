@@ -20,7 +20,7 @@ package org.apache.paimon.flink;
 
 import org.apache.paimon.CoreOptions.LogChangelogMode;
 import org.apache.paimon.CoreOptions.LogConsistency;
-import org.apache.paimon.CoreOptions.StreamReadType;
+import org.apache.paimon.CoreOptions.StreamingReadMode;
 import org.apache.paimon.annotation.VisibleForTesting;
 import org.apache.paimon.catalog.CatalogContext;
 import org.apache.paimon.flink.log.LogStoreTableFactory;
@@ -115,9 +115,15 @@ public abstract class AbstractFlinkTableFactory
         options.forEach(configOptions::setString);
 
         if (configOptions.get(LOG_SYSTEM).equalsIgnoreCase(NONE)) {
-            // Use file store continuous reading
+            // Use file store continuous reading and set streaming-read-from
+            options.put(STREAMING_READ_FROM.key(), StreamingReadMode.FILE.getValue());
             validateFileStoreContinuous(configOptions);
             return Optional.empty();
+        } else {
+            // user does not set streaming-read-from, making default value log
+            if (!options.containsKey(STREAMING_READ_FROM.key())) {
+                options.put(STREAMING_READ_FROM.key(), StreamingReadMode.LOG.getValue());
+            }
         }
 
         return Optional.of(discoverLogStoreFactory(classLoader, configOptions.get(LOG_SYSTEM)));
@@ -125,7 +131,7 @@ public abstract class AbstractFlinkTableFactory
 
     private static void validateFileStoreContinuous(Options options) {
         LogChangelogMode changelogMode = options.get(LOG_CHANGELOG_MODE);
-        StreamReadType streamReadType = options.get(STREAMING_READ_FROM);
+        StreamingReadMode streamingReadMode = options.get(STREAMING_READ_FROM);
         if (changelogMode == LogChangelogMode.UPSERT) {
             throw new ValidationException(
                     "File store continuous reading dose not support upsert changelog mode.");
@@ -135,7 +141,7 @@ public abstract class AbstractFlinkTableFactory
             throw new ValidationException(
                     "File store continuous reading dose not support eventual consistency mode.");
         }
-        if (streamReadType == StreamReadType.LOG_SYSTEM) {
+        if (streamingReadMode == StreamingReadMode.LOG) {
             throw new ValidationException(
                     "Table data is stored only in the file store, can not reading from the log store.");
         }

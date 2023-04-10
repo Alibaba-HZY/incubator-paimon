@@ -71,8 +71,7 @@ public class LogSystemITCase extends KafkaTableTestBase {
     @Test
     public void testReadFromFile() throws Exception {
         createTopicIfNotExists("test-double-sink", 1);
-        // disable checkpointing to test eventual
-        env.getCheckpointConfig().disableCheckpointing();
+        env.getCheckpointConfig().setCheckpointInterval(10 * 1000);
         env.setParallelism(1);
         tEnv.executeSql(
                 String.format(
@@ -84,7 +83,6 @@ public class LogSystemITCase extends KafkaTableTestBase {
                                 + "WITH (\n"
                                 + " 'merge-engine' = 'aggregation',\n"
                                 + "  'changelog-producer' = 'full-compaction',\n"
-                                + "    'log.consistency' = 'eventual',\n"
                                 + "    'log.system' = 'kafka',\n"
                                 + "    'streaming-read-from'='file',\n"
                                 + "    'fields.cnt.aggregate-function' = 'sum',\n"
@@ -136,7 +134,7 @@ public class LogSystemITCase extends KafkaTableTestBase {
                                 + "    'changelog-producer' = 'full-compaction',\n"
                                 + "    'log.consistency' = 'eventual',\n"
                                 + "    'log.system' = 'kafka',\n"
-                                + "    'streaming-read-from'='log-system',\n"
+                                + "    'streaming-read-from'='log',\n"
                                 + "    'kafka.bootstrap.servers' = '%s',\n"
                                 + "    'kafka.topic' = 'test-single-sink',\n"
                                 + "    'kafka.transaction.timeout.ms'='30000'\n"

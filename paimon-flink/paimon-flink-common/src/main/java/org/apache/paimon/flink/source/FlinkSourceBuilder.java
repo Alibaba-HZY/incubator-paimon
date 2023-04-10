@@ -20,7 +20,7 @@ package org.apache.paimon.flink.source;
 
 import org.apache.paimon.CoreOptions;
 import org.apache.paimon.CoreOptions.StartupMode;
-import org.apache.paimon.CoreOptions.StreamReadType;
+import org.apache.paimon.CoreOptions.StreamingReadMode;
 import org.apache.paimon.flink.FlinkConnectorOptions;
 import org.apache.paimon.flink.Projection;
 import org.apache.paimon.flink.log.LogSourceProvider;
@@ -47,7 +47,7 @@ import javax.annotation.Nullable;
 import java.util.List;
 import java.util.Optional;
 
-import static org.apache.paimon.CoreOptions.StreamReadType.FILE;
+import static org.apache.paimon.CoreOptions.StreamingReadMode.FILE;
 import static org.apache.paimon.flink.LogicalTypeConversion.toLogicalType;
 
 /**
@@ -144,10 +144,9 @@ public class FlinkSourceBuilder {
 
             // TODO visit all options through CoreOptions
             StartupMode startupMode = CoreOptions.startupMode(conf);
-            StreamReadType streamReadType = CoreOptions.streamReadType(conf);
+            StreamingReadMode streamingReadMode = CoreOptions.streamReadType(conf);
 
-            // no log system or log system is configured but streamReadType is FILE
-            if (logSourceProvider == null || streamReadType == FILE) {
+            if (streamingReadMode == FILE) {
                 return buildContinuousFileSource();
             } else {
                 if (startupMode != StartupMode.LATEST_FULL) {

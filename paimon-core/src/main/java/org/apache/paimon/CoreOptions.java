@@ -568,9 +568,9 @@ public class CoreOptions implements Serializable {
                             "Only used to force TableScan to construct 'ContinuousCompactorStartingScanner' and "
                                     + "'ContinuousCompactorFollowUpScanner' for dedicated streaming compaction job.");
 
-    public static final ConfigOption<StreamReadType> STREAMING_READ_FROM =
+    public static final ConfigOption<StreamingReadMode> STREAMING_READ_FROM =
             key("streaming-read-from")
-                    .enumType(StreamReadType.class)
+                    .enumType(StreamingReadMode.class)
                     .noDefaultValue()
                     .withDescription(
                             Description.builder()
@@ -581,11 +581,11 @@ public class CoreOptions implements Serializable {
                                     .linebreak()
                                     .list(
                                             text(
-                                                    StreamReadType.FILE.getValue()
+                                                    StreamingReadMode.FILE.getValue()
                                                             + ": Will read from the file store"))
                                     .list(
                                             text(
-                                                    StreamReadType.LOG_SYSTEM.getValue()
+                                                    StreamingReadMode.LOG.getValue()
                                                             + ":Will read from the log store, the user must configure log.system"))
                                     .build());
 
@@ -843,7 +843,7 @@ public class CoreOptions implements Serializable {
         return options.get(READ_BATCH_SIZE);
     }
 
-    public static StreamReadType streamReadType(Options options) {
+    public static StreamingReadMode streamReadType(Options options) {
         return options.get(STREAMING_READ_FROM);
     }
 
@@ -1080,14 +1080,14 @@ public class CoreOptions implements Serializable {
     }
 
     /** Specifies the type for streaming read. */
-    public enum StreamReadType implements DescribedEnum {
-        LOG_SYSTEM("log-system", "Read from log system such as kafka."),
+    public enum StreamingReadMode implements DescribedEnum {
+        LOG("log", "Read from log system such as kafka."),
         FILE("file", "Read from file store.");
 
         private final String value;
         private final String description;
 
-        StreamReadType(String value, String description) {
+        StreamingReadMode(String value, String description) {
             this.value = value;
             this.description = description;
         }
@@ -1107,8 +1107,8 @@ public class CoreOptions implements Serializable {
         }
 
         @VisibleForTesting
-        public static StreamReadType fromValue(String value) {
-            for (StreamReadType formatType : StreamReadType.values()) {
+        public static StreamingReadMode fromValue(String value) {
+            for (StreamingReadMode formatType : StreamingReadMode.values()) {
                 if (formatType.value.equals(value)) {
                     return formatType;
                 }
@@ -1118,7 +1118,7 @@ public class CoreOptions implements Serializable {
                             "Invalid format type %s, only support [%s]",
                             value,
                             StringUtils.join(
-                                    Arrays.stream(StreamReadType.values()).iterator(), ",")));
+                                    Arrays.stream(StreamingReadMode.values()).iterator(), ",")));
         }
     }
 
