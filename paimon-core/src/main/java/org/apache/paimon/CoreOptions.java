@@ -574,7 +574,7 @@ public class CoreOptions implements Serializable {
                     .noDefaultValue()
                     .withDescription(
                             Description.builder()
-                                    .text("Read the store type of the paimon table.")
+                                    .text("The mode of streaming read that specifies to read the data of table file or log")
                                     .linebreak()
                                     .linebreak()
                                     .text("Possible values:")
@@ -582,11 +582,11 @@ public class CoreOptions implements Serializable {
                                     .list(
                                             text(
                                                     StreamingReadMode.FILE.getValue()
-                                                            + ": Will read from the file store"))
+                                                            + ": Reads from the data of table file store."))
                                     .list(
                                             text(
                                                     StreamingReadMode.LOG.getValue()
-                                                            + ":Will read from the log store, the user must configure log.system"))
+                                                            + ": Read from the data of table log store."))
                                     .build());
 
     private final Options options;
@@ -1081,8 +1081,8 @@ public class CoreOptions implements Serializable {
 
     /** Specifies the type for streaming read. */
     public enum StreamingReadMode implements DescribedEnum {
-        LOG("log", "Read from log system such as kafka."),
-        FILE("file", "Read from file store.");
+        LOG("log", "Reads from the log store."),
+        FILE("file", "Reads from the file store.");
 
         private final String value;
         private final String description;
