@@ -574,7 +574,7 @@ public class CoreOptions implements Serializable {
                     .noDefaultValue()
                     .withDescription(
                             Description.builder()
-                                    .text("Read the store type of the paimon table.")
+                                    .text("The mode of streaming read that specifies to read the data of table file or log")
                                     .linebreak()
                                     .linebreak()
                                     .text("Possible values:")
