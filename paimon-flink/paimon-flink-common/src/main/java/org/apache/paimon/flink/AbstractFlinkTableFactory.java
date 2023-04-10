@@ -134,7 +134,7 @@ public abstract class AbstractFlinkTableFactory
         StreamingReadMode streamingReadMode = options.get(STREAMING_READ_MODE);
         if (changelogMode == LogChangelogMode.UPSERT) {
             throw new ValidationException(
-                    "File store continuous reading dose not support upsert changelog mode.");
+                    "File store continuous reading does not support upsert changelog mode.");
         }
         LogConsistency consistency = options.get(LOG_CONSISTENCY);
         if (consistency == LogConsistency.EVENTUAL) {
