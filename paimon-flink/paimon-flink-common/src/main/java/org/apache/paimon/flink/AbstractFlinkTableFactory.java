@@ -143,7 +143,7 @@ public abstract class AbstractFlinkTableFactory
         }
         if (streamingReadMode == StreamingReadMode.LOG) {
             throw new ValidationException(
-                    "Table data is stored only in the file store, can not reading from the log store.");
+                    "File store continuous reading does not support the log streaming read mode.");
         }
     }
 
