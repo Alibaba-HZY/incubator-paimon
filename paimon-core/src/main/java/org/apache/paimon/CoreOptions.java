@@ -586,7 +586,7 @@ public class CoreOptions implements Serializable {
                                     .list(
                                             text(
                                                     StreamingReadMode.LOG.getValue()
-                                                            + ":Will read from the log store, the user must configure log.system"))
+                                                            + ": Read from the data of table log store."))
                                     .build());
 
     private final Options options;
