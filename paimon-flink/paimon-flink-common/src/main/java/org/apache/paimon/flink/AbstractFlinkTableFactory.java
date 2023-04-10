@@ -139,7 +139,7 @@ public abstract class AbstractFlinkTableFactory
         LogConsistency consistency = options.get(LOG_CONSISTENCY);
         if (consistency == LogConsistency.EVENTUAL) {
             throw new ValidationException(
-                    "File store continuous reading dose not support eventual consistency mode.");
+                    "File store continuous reading does not support eventual consistency mode.");
         }
         if (streamingReadMode == StreamingReadMode.LOG) {
             throw new ValidationException(
