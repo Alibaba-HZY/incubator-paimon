@@ -574,7 +574,8 @@ public class CoreOptions implements Serializable {
                     .noDefaultValue()
                     .withDescription(
                             Description.builder()
-                                    .text("The mode of streaming read that specifies to read the data of table file or log")
+                                    .text(
+                                            "The mode of streaming read that specifies to read the data of table file or log")
                                     .linebreak()
                                     .linebreak()
                                     .text("Possible values:")
