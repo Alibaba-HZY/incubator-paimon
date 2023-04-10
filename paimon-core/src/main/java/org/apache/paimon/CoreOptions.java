@@ -568,8 +568,8 @@ public class CoreOptions implements Serializable {
                             "Only used to force TableScan to construct 'ContinuousCompactorStartingScanner' and "
                                     + "'ContinuousCompactorFollowUpScanner' for dedicated streaming compaction job.");
 
-    public static final ConfigOption<StreamingReadMode> STREAMING_READ_FROM =
-            key("streaming-read-from")
+    public static final ConfigOption<StreamingReadMode> STREAMING_READ_MODE =
+            key("streaming-read-mode")
                     .enumType(StreamingReadMode.class)
                     .noDefaultValue()
                     .withDescription(
@@ -844,7 +844,7 @@ public class CoreOptions implements Serializable {
     }
 
     public static StreamingReadMode streamReadType(Options options) {
-        return options.get(STREAMING_READ_FROM);
+        return options.get(STREAMING_READ_MODE);
     }
 
     /** Specifies the merge engine for table with primary key. */
