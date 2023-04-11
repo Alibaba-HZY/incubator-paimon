@@ -43,7 +43,6 @@ public class OSSFileIO extends HadoopCompliantFileIO {
 
 
 
-
     private static final Logger LOG = LoggerFactory.getLogger(OSSFileIO.class);
 
     /**
