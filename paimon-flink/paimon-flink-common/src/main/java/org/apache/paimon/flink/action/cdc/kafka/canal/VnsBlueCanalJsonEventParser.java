@@ -63,9 +63,9 @@ import java.util.stream.Collectors;
 import static org.apache.paimon.utils.Preconditions.checkArgument;
 
 /** {@link EventParser} for Canal-json. */
-public class CanalJsonEventParser implements EventParser<String> {
+public class VnsBlueCanalJsonEventParser implements EventParser<String> {
 
-    private static final Logger LOG = LoggerFactory.getLogger(CanalJsonEventParser.class);
+    private static final Logger LOG = LoggerFactory.getLogger(VnsBlueCanalJsonEventParser.class);
 
     private static final String FIELD_DATA = "data";
     private static final String FIELD_OLD = "old";
@@ -85,15 +85,15 @@ public class CanalJsonEventParser implements EventParser<String> {
     private final TableNameConverter tableNameConverter;
     private final List<ComputedColumn> computedColumns;
 
-    public CanalJsonEventParser(boolean caseSensitive, List<ComputedColumn> computedColumns) {
+    public VnsBlueCanalJsonEventParser(boolean caseSensitive, List<ComputedColumn> computedColumns) {
         this(caseSensitive, new TableNameConverter(caseSensitive), computedColumns);
     }
 
-    public CanalJsonEventParser(boolean caseSensitive, TableNameConverter tableNameConverter) {
+    public VnsBlueCanalJsonEventParser(boolean caseSensitive, TableNameConverter tableNameConverter) {
         this(caseSensitive, tableNameConverter, Collections.emptyList());
     }
 
-    public CanalJsonEventParser(
+    public VnsBlueCanalJsonEventParser(
             boolean caseSensitive,
             TableNameConverter tableNameConverter,
             List<ComputedColumn> computedColumns) {
@@ -108,7 +108,7 @@ public class CanalJsonEventParser implements EventParser<String> {
             root = objectMapper.readValue(rawEvent, JsonNode.class);
             Preconditions.checkNotNull(
                     root.get("mysqlType"),
-                    "CanalJsonEventParser only supports canal-json format,"
+                    "VnsBlueCanalJsonEventParser only supports canal-json format,"
                             + "please make sure that your topic's format is accurate.");
             JsonNode mysqlType = root.get("mysqlType");
 

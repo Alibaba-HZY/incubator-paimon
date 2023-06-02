@@ -23,7 +23,7 @@ import org.apache.paimon.data.GenericArray;
 import org.apache.paimon.data.GenericRow;
 import org.apache.paimon.flink.action.cdc.ComputedColumn;
 import org.apache.paimon.flink.action.cdc.TableNameConverter;
-import org.apache.paimon.flink.action.cdc.kafka.canal.CanalJsonEventParser;
+import org.apache.paimon.flink.action.cdc.kafka.canal.VnsBlueCanalJsonEventParser;
 import org.apache.paimon.flink.action.cdc.mysql.Expression;
 import org.apache.paimon.flink.sink.cdc.EventParser;
 import org.apache.paimon.types.DataField;
@@ -40,7 +40,7 @@ import java.util.stream.Collectors;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-/** Tests for {@link CanalJsonEventParser}. */
+/** Tests for {@link VnsBlueCanalJsonEventParser}. */
 public class KafkaEventParserTest {
     private static final String CANAL_JSON_EVENT =
             "{\"data\":[{\"pt\":\"1\",\"_ID\":\"1\",\"v1\":\"one\","
@@ -107,7 +107,7 @@ public class KafkaEventParserTest {
     public void testCanalJsonEventParser() {
         boolean caseSensitive = false;
         EventParser<String> parser =
-                new CanalJsonEventParser(caseSensitive, new TableNameConverter(caseSensitive));
+                new VnsBlueCanalJsonEventParser(caseSensitive, new TableNameConverter(caseSensitive));
         parser.setRawEvent(CANAL_JSON_EVENT);
         List<DataField> dataFields = new ArrayList<>();
         dataFields.add(new DataField(0, "pt", DataTypes.INT()));
@@ -143,7 +143,7 @@ public class KafkaEventParserTest {
     public void testCanalJsonEventParserDdl() {
         boolean caseSensitive = false;
         EventParser<String> parser =
-                new CanalJsonEventParser(caseSensitive, new TableNameConverter(caseSensitive));
+                new VnsBlueCanalJsonEventParser(caseSensitive, new TableNameConverter(caseSensitive));
         parser.setRawEvent(CANAL_JSON_EVENT);
         List<DataField> expectDataFields = new ArrayList<>();
         expectDataFields.add(new DataField(0, "pt", DataTypes.INT()));
@@ -203,7 +203,7 @@ public class KafkaEventParserTest {
     public void testCanalJsonEventParserParseDebeziumJson() {
         boolean caseSensitive = true;
         EventParser<String> parser =
-                new CanalJsonEventParser(caseSensitive, new TableNameConverter(caseSensitive));
+                new VnsBlueCanalJsonEventParser(caseSensitive, new TableNameConverter(caseSensitive));
 
         RuntimeException e =
                 assertThrows(
@@ -212,16 +212,16 @@ public class KafkaEventParserTest {
                         "Expecting RuntimeException");
         assertThat(e)
                 .hasMessage(
-                        "java.lang.NullPointerException: CanalJsonEventParser only supports canal-json format,please make sure that your topic's format is accurate.");
+                        "java.lang.NullPointerException: VnsBlueCanalJsonEventParser only supports canal-json format,please make sure that your topic's format is accurate.");
     }
 
     @Test
     public void testCaseSensitive() {
         boolean caseSensitive = false;
         EventParser<String> parserCaseInsensitive =
-                new CanalJsonEventParser(caseSensitive, new TableNameConverter(caseSensitive));
+                new VnsBlueCanalJsonEventParser(caseSensitive, new TableNameConverter(caseSensitive));
         EventParser<String> parserCaseSensitive =
-                new CanalJsonEventParser(!caseSensitive, new TableNameConverter(!caseSensitive));
+                new VnsBlueCanalJsonEventParser(!caseSensitive, new TableNameConverter(!caseSensitive));
         parserCaseInsensitive.setRawEvent(CANAL_JSON_EVENT);
         List<DataField> dataFields = new ArrayList<>();
         dataFields.add(new DataField(0, "pt", DataTypes.INT()));
@@ -269,7 +269,7 @@ public class KafkaEventParserTest {
     public void testCanalJsonEventParserAndComputeColumn() {
         boolean caseSensitive = false;
         EventParser<String> parser =
-                new CanalJsonEventParser(
+                new VnsBlueCanalJsonEventParser(
                         caseSensitive,
                         new TableNameConverter(caseSensitive),
                         Collections.singletonList(
