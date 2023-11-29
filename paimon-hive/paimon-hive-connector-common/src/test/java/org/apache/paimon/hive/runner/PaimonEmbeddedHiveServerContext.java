@@ -18,6 +18,8 @@
 
 package org.apache.paimon.hive.runner;
 
+import org.apache.paimon.hive.TestHiveMetastore;
+
 import com.klarna.hiverunner.HiveServerContext;
 import com.klarna.hiverunner.config.HiveRunnerConfig;
 import org.apache.hadoop.fs.FileUtil;
@@ -29,7 +31,6 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.Map;
-import java.util.UUID;
 
 import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.HADOOPBIN;
 import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.HIVECONVERTJOIN;
@@ -44,7 +45,6 @@ import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.HIVE_INFER_BUCKET_SO
 import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.HIVE_SERVER2_LOGGING_OPERATION_ENABLED;
 import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.HIVE_SUPPORT_CONCURRENCY;
 import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.LOCALSCRATCHDIR;
-import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTORECONNECTURLKEY;
 import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTOREWAREHOUSE;
 import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTORE_DISALLOW_INCOMPATIBLE_COL_TYPE_CHANGES;
 import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTORE_VALIDATE_COLUMNS;
@@ -59,11 +59,13 @@ public class PaimonEmbeddedHiveServerContext implements HiveServerContext {
 
     private final TemporaryFolder basedir;
     private final HiveRunnerConfig hiveRunnerConfig;
+    private final TestHiveMetastore testHiveMetastore;
     private boolean inited = false;
 
     PaimonEmbeddedHiveServerContext(TemporaryFolder basedir, HiveRunnerConfig hiveRunnerConfig) {
         this.basedir = basedir;
         this.hiveRunnerConfig = hiveRunnerConfig;
+        this.testHiveMetastore = new TestHiveMetastore();
     }
 
     @Override
@@ -171,10 +173,7 @@ public class PaimonEmbeddedHiveServerContext implements HiveServerContext {
         } catch (ClassNotFoundException e) {
             throw new RuntimeException(e);
         }
-
-        // set JDO configs
-        String jdoConnectionURL = "jdbc:derby:memory:" + UUID.randomUUID().toString();
-        hiveConf.setVar(METASTORECONNECTURLKEY, jdoConnectionURL + ";create=true");
+        testHiveMetastore.start(hiveConf, 5);
 
         hiveConf.setBoolVar(METASTORE_VALIDATE_CONSTRAINTS, true);
         hiveConf.setBoolVar(METASTORE_VALIDATE_COLUMNS, true);

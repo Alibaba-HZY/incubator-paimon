@@ -155,6 +155,14 @@ INSERT OVERWRITE MyTable SELECT ...
 
 {{< /tab >}}
 
+{{< tab "Hive" >}}
+
+```sql
+INSERT OVERWRITE TABLE MyTable SELECT ...
+```
+
+{{< /tab >}}
+
 {{< /tabs >}}
 
 ### Overwriting a Partition
@@ -221,6 +229,42 @@ INSERT OVERWRITE MyTable SELECT ...
 -- Dynamic overwrite
 SET spark.sql.sources.partitionOverwriteMode=dynamic;
 INSERT OVERWRITE MyTable SELECT ...
+```
+
+{{< /tab >}}
+
+{{< tab "Hive" >}}
+Hive only support dynamic partition overwrite in mr engine;
+
+```sql
+-- MyTable is a Partitioned Table in hive metastore
+CREATE TABLE MyTable (
+     id BIGINT,
+     name STRING
+) PARTITIONED BY ( 
+    dt STRING
+)
+STORED BY 'org.apache.paimon.hive.PaimonStorageHandler'
+TBLPROPERTIES (
+    'primary-key' = 'dt,id'
+); 
+-- Dynamic overwrite
+set hive.exec.dynamic.partition=true;
+set hive.exec.dynamic.partition.mode=nonstrict;
+INSERT OVERWRITE TABLE MyTable PARTITION(dt) SELECT id,name,dt from other_table;
+
+-- MyTable is a Partitioned Table not in hive metastore
+CREATE TABLE MyTable (
+   id BIGINT,
+   name STRING,
+   dt STRING
+)STORED BY 'org.apache.paimon.hive.PaimonStorageHandler'
+TBLPROPERTIES (
+    'primary-key' = 'dt,id',
+    'partition'='dt',
+);
+INSERT OVERWRITE TABLE MyTable SELECT id,name,dt from other_table;
+
 ```
 
 {{< /tab >}}

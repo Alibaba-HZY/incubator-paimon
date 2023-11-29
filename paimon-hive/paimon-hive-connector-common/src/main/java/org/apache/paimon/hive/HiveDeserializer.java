@@ -24,12 +24,14 @@ import org.apache.paimon.data.InternalArray;
 import org.apache.paimon.data.InternalMap;
 import org.apache.paimon.data.InternalRow;
 import org.apache.paimon.hive.objectinspector.HivePaimonArray;
+import org.apache.paimon.hive.objectinspector.PaimonObjectInspectorFactory;
 import org.apache.paimon.hive.objectinspector.WriteableObjectInspector;
 import org.apache.paimon.types.ArrayType;
 import org.apache.paimon.types.DataType;
 import org.apache.paimon.types.MapType;
 import org.apache.paimon.types.RowType;
 import org.apache.paimon.utils.Preconditions;
+import org.apache.paimon.utils.TypeUtils;
 
 import org.apache.paimon.shade.guava30.com.google.common.collect.Lists;
 import org.apache.paimon.shade.guava30.com.google.common.collect.Maps;
@@ -42,6 +44,7 @@ import org.apache.hadoop.hive.serde2.objectinspector.StructField;
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -58,6 +61,8 @@ public class HiveDeserializer {
         private StructObjectInspector writerInspector;
         private StructObjectInspector sourceInspector;
 
+        private LinkedHashMap<String, String> fullPartSpec;
+
         Builder schema(HiveSchema mainSchema) {
             this.schema = mainSchema;
             return this;
@@ -73,9 +78,16 @@ public class HiveDeserializer {
             return this;
         }
 
+        Builder fullPartSpec(LinkedHashMap<String, String> fullPartSpec) {
+            this.fullPartSpec = fullPartSpec;
+            return this;
+        }
+
         HiveDeserializer build() {
             return new HiveDeserializer(
-                    schema, new ObjectInspectorPair(writerInspector, sourceInspector));
+                    schema,
+                    new ObjectInspectorPair(writerInspector, sourceInspector),
+                    fullPartSpec);
         }
     }
 
@@ -89,17 +101,23 @@ public class HiveDeserializer {
         return (InternalRow) fieldDeserializer.value(data);
     }
 
-    private HiveDeserializer(HiveSchema schema, ObjectInspectorPair pair) {
-        this.fieldDeserializer = DeserializerVisitor.visit(schema, pair);
+    private HiveDeserializer(
+            HiveSchema schema,
+            ObjectInspectorPair pair,
+            LinkedHashMap<String, String> fullPartSpec) {
+        this.fieldDeserializer = DeserializerVisitor.visit(schema, pair, fullPartSpec);
     }
 
     private static class DeserializerVisitor
             extends SchemaVisitor<ObjectInspectorPair, FieldDeserializer> {
 
-        public static FieldDeserializer visit(HiveSchema schema, ObjectInspectorPair pair) {
+        public static FieldDeserializer visit(
+                HiveSchema schema,
+                ObjectInspectorPair pair,
+                LinkedHashMap<String, String> fullPartSpec) {
             return visit(
                     schema,
-                    new SchemaNameMappingObjectInspectorPair(schema, pair),
+                    new SchemaNameMappingObjectInspectorPair(schema, pair, fullPartSpec),
                     new DeserializerVisitor(),
                     new PartnerObjectInspectorByNameAccessors());
         }
@@ -138,14 +156,26 @@ public class HiveDeserializer {
                         ((StructObjectInspector) pair.sourceInspector())
                                 .getStructFieldsDataAsList(o);
 
-                GenericRow row = new GenericRow(data.size());
-
+                SchemaNameMappingObjectInspectorPair newPair = null;
+                if (pair instanceof SchemaNameMappingObjectInspectorPair) {
+                    newPair = (SchemaNameMappingObjectInspectorPair) pair;
+                }
+                GenericRow row = new GenericRow(deserializers.size());
                 for (int i = 0; i < data.size(); i++) {
                     Object fieldValue = data.get(i);
                     if (fieldValue != null) {
                         row.setField(i, deserializers.get(i).value(fieldValue));
                     } else {
                         row.setField(i, null);
+                    }
+                }
+                int index = 0;
+                while (index < deserializers.size() - data.size()) {
+                    for (Map.Entry<String, String> part : newPair.fullPartSpec.entrySet()) {
+                        row.setField(
+                                data.size() + index++,
+                                TypeUtils.castFromString(
+                                        part.getValue(), newPair.fullPartType.get(part.getKey())));
                     }
                 }
 
@@ -215,14 +245,9 @@ public class HiveDeserializer {
 
         @Override
         public ObjectInspectorPair fieldPartner(ObjectInspectorPair pair, String name) {
-            String sourceName = pair.sourceName(name);
             return new ObjectInspectorPair(
-                    ((StructObjectInspector) pair.writerInspector())
-                            .getStructFieldRef(name)
-                            .getFieldObjectInspector(),
-                    ((StructObjectInspector) pair.sourceInspector())
-                            .getStructFieldRef(sourceName)
-                            .getFieldObjectInspector());
+                    pair.getWriterFieldObjectInspector(name),
+                    pair.getSourceFieldObjectInspector(name));
         }
 
         @Override
@@ -258,21 +283,71 @@ public class HiveDeserializer {
     private static class SchemaNameMappingObjectInspectorPair extends ObjectInspectorPair {
         private final Map<String, String> sourceNameMap;
 
-        SchemaNameMappingObjectInspectorPair(HiveSchema schema, ObjectInspectorPair pair) {
+        private final LinkedHashMap<String, String> fullPartSpec;
+        private final LinkedHashMap<String, DataType> fullPartType;
+
+        SchemaNameMappingObjectInspectorPair(
+                HiveSchema schema,
+                ObjectInspectorPair pair,
+                LinkedHashMap<String, String> fullPartSpec) {
+
             super(pair.writerInspector(), pair.sourceInspector());
 
             this.sourceNameMap = Maps.newHashMapWithExpectedSize(schema.fields().size());
-
+            this.fullPartSpec = fullPartSpec;
             List<? extends StructField> fields =
                     ((StructObjectInspector) sourceInspector()).getAllStructFieldRefs();
-            for (int i = 0; i < schema.fields().size(); ++i) {
+            for (int i = 0; i < fields.size(); ++i) {
                 sourceNameMap.put(schema.fields().get(i).name(), fields.get(i).getFieldName());
+            }
+            fullPartType = Maps.newLinkedHashMapWithExpectedSize(fullPartSpec.size());
+            // partitionKey
+            for (int i = fields.size(); i < schema.fields().size(); ++i) {
+                sourceNameMap.put(schema.fields().get(i).name(), schema.fields().get(i).name());
+            }
+            for (Map.Entry<String, String> part : fullPartSpec.entrySet()) {
+                fullPartType.put(
+                        schema.fields().get(schema.getFieldIndex(part.getKey())).name(),
+                        schema.fieldTypes().get(schema.getFieldIndex(part.getKey())));
             }
         }
 
         @Override
         String sourceName(String originalName) {
             return sourceNameMap.get(originalName);
+        }
+
+        @Override
+        ObjectInspector getSourceFieldObjectInspector(String filedName) {
+            try {
+                if (((StructObjectInspector) this.sourceInspector())
+                                .getStructFieldRef(sourceName(filedName))
+                        != null) {
+                    return ((StructObjectInspector) this.sourceInspector())
+                            .getStructFieldRef(sourceName(filedName))
+                            .getFieldObjectInspector();
+                }
+            } catch (Exception e) {
+                if (fullPartSpec.containsKey(filedName)) {
+                    return PaimonObjectInspectorFactory.create(
+                            fullPartType.get(sourceName(filedName)));
+                }
+            }
+
+            return super.getSourceFieldObjectInspector(filedName);
+        }
+
+        @Override
+        ObjectInspector getWriterFieldObjectInspector(String filedName) {
+            if (((StructObjectInspector) this.writerInspector()).getStructFieldRef(filedName)
+                    != null) {
+                return ((StructObjectInspector) this.writerInspector())
+                        .getStructFieldRef(filedName)
+                        .getFieldObjectInspector();
+            } else if (fullPartSpec.containsKey(filedName)) {
+                return PaimonObjectInspectorFactory.create(fullPartType.get(filedName));
+            }
+            return super.getWriterFieldObjectInspector(filedName);
         }
     }
 
@@ -303,6 +378,18 @@ public class HiveDeserializer {
 
         String sourceName(String originalName) {
             return originalName;
+        }
+
+        ObjectInspector getSourceFieldObjectInspector(String filedName) {
+            return ((StructObjectInspector) sourceInspector)
+                    .getStructFieldRef(filedName)
+                    .getFieldObjectInspector();
+        }
+
+        ObjectInspector getWriterFieldObjectInspector(String filedName) {
+            return ((StructObjectInspector) writerInspector)
+                    .getStructFieldRef(filedName)
+                    .getFieldObjectInspector();
         }
     }
 }

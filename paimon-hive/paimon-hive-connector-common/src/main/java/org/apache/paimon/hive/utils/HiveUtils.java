@@ -19,7 +19,12 @@
 package org.apache.paimon.hive.utils;
 
 import org.apache.paimon.CoreOptions;
+import org.apache.paimon.catalog.Catalog;
 import org.apache.paimon.catalog.CatalogContext;
+import org.apache.paimon.catalog.CatalogFactory;
+import org.apache.paimon.catalog.CatalogUtils;
+import org.apache.paimon.catalog.Identifier;
+import org.apache.paimon.hive.HiveCatalogOptions;
 import org.apache.paimon.hive.LocationKeyExtractor;
 import org.apache.paimon.hive.SearchArgumentToPredicateConverter;
 import org.apache.paimon.options.Options;
@@ -29,6 +34,7 @@ import org.apache.paimon.table.FileStoreTable;
 import org.apache.paimon.table.FileStoreTableFactory;
 
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.ql.io.sarg.ConvertAstToSearchArg;
 import org.apache.hadoop.hive.ql.io.sarg.SearchArgument;
 import org.apache.hadoop.hive.serde2.ColumnProjectionUtils;
@@ -42,6 +48,9 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.apache.paimon.options.CatalogOptions.METASTORE;
+import static org.apache.paimon.options.CatalogOptions.URI;
+import static org.apache.paimon.options.CatalogOptions.WAREHOUSE;
 import static org.apache.paimon.options.OptionsUtils.PAIMON_PREFIX;
 import static org.apache.paimon.options.OptionsUtils.convertToPropertiesPrefixKey;
 
@@ -53,6 +62,31 @@ public class HiveUtils {
         options.set(CoreOptions.PATH, LocationKeyExtractor.getPaimonLocation(jobConf));
         CatalogContext catalogContext = CatalogContext.create(options, jobConf);
         return FileStoreTableFactory.create(catalogContext);
+    }
+
+    public static FileStoreTable createHiveCatalogTable(JobConf jobConf) {
+        Options options = extractCatalogConfig(jobConf);
+        String path = LocationKeyExtractor.getPaimonLocation(jobConf);
+        options.set(METASTORE, HiveCatalogOptions.IDENTIFIER);
+        options.set(CoreOptions.PATH, path);
+        options.set(WAREHOUSE, CatalogUtils.warehouse(path));
+        String thriftUri = jobConf.get(HiveConf.ConfVars.METASTOREURIS.varname);
+        if (thriftUri == null) {
+            throw new RuntimeException(
+                    "hive.metastore.uris is null please set hive.metastore.uris");
+        }
+        options.set(URI, thriftUri);
+        CatalogContext catalogContext = CatalogContext.create(options, jobConf);
+
+        Catalog catalog = CatalogFactory.createCatalog(catalogContext);
+
+        Identifier identifier =
+                Identifier.create(CatalogUtils.database(path), CatalogUtils.table(path));
+        try {
+            return (FileStoreTable) catalog.getTable(identifier);
+        } catch (Catalog.TableNotExistException e) {
+            return createFileStoreTable(jobConf);
+        }
     }
 
     public static Optional<Predicate> createPredicate(

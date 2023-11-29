@@ -33,6 +33,11 @@ public class PartitionPathUtils {
 
     private static final Pattern PARTITION_NAME_PATTERN = Pattern.compile("([^/]+)=([^/]+)");
 
+    private static final Pattern STATIC_KEY_VALUE_PATTERN =
+            Pattern.compile("(\\w+)\\s*=\\s*'([^']+)'");
+    private static final Pattern DYNAMIC_PARTITION_PATTERN =
+            Pattern.compile("PARTITION\\s+\\(([^\\)]+)\\)");
+
     private static final BitSet CHAR_TO_ESCAPE = new BitSet(128);
 
     static {
@@ -203,6 +208,45 @@ public class PartitionPathUtils {
         // reverse the list since we checked the part from leaf dir to table's base dir
         for (int i = kvs.size(); i > 0; i--) {
             fullPartSpec.put(kvs.get(i - 1)[0], kvs.get(i - 1)[1]);
+        }
+
+        return fullPartSpec;
+    }
+
+    /**
+     * Make partition spec from path.
+     *
+     * @param sql hive.query.string
+     * @return Sequential partition specs.
+     */
+    public static LinkedHashMap<String, String> extractDynamicPartitionSpecFromQuery(String sql) {
+        LinkedHashMap<String, String> fullPartSpec = new LinkedHashMap<>();
+        List<String[]> kvs = new ArrayList<>();
+        Matcher matcher = DYNAMIC_PARTITION_PATTERN.matcher(sql);
+        if (matcher.find()) {
+            String partitionFieldStr = matcher.group(1);
+            String[] partitions = partitionFieldStr.split(",");
+            for (String partition : partitions) {
+                partition = partition.trim();
+                Matcher keyValueMatcher = STATIC_KEY_VALUE_PATTERN.matcher(partition);
+                if (keyValueMatcher.find()) {
+                    String key = unescapePathName(keyValueMatcher.group(1));
+                    String value = unescapePathName(keyValueMatcher.group(2));
+                    String[] kv = new String[2];
+                    kv[0] = key;
+                    kv[1] = value;
+                    kvs.add(kv);
+                } else {
+                    String[] kv = new String[2];
+                    kv[0] = unescapePathName(partition);
+                    kv[1] = "__HIVE_DEFAULT_PARTITION__";
+                    kvs.add(kv);
+                }
+            }
+        }
+
+        for (int i = 0; i < kvs.size(); i++) {
+            fullPartSpec.put(kvs.get(i)[0], kvs.get(i)[1]);
         }
 
         return fullPartSpec;

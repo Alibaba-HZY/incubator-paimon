@@ -218,6 +218,180 @@ public class HiveWriteITCase {
     }
 
     @Test
+    public void testInsertOverwrite() throws Exception {
+        List<InternalRow> emptyData = Collections.emptyList();
+
+        String outputTableName =
+                createAppendOnlyExternalTable(
+                        RowType.of(
+                                new DataType[] {
+                                    DataTypes.INT(),
+                                    DataTypes.INT(),
+                                    DataTypes.BIGINT(),
+                                    DataTypes.STRING()
+                                },
+                                new String[] {"pt", "a", "b", "c"}),
+                        Collections.singletonList("pt"),
+                        emptyData,
+                        "hive_test_table_output");
+
+        hiveShell.execute(
+                "insert overwrite table "
+                        + outputTableName
+                        + " values (1,2,3,'Hello'),(4,5,6,'Fine')");
+        hiveShell.execute(
+                "insert overwrite table "
+                        + outputTableName
+                        + " values (1,2,3,'Hello'),(4,5,6,'Fine')");
+        List<String> select = hiveShell.executeQuery("select * from " + outputTableName);
+        assertThat(select).containsExactly("1\t2\t3\tHello", "4\t5\t6\tFine");
+    }
+
+    @Test
+    public void testInsertOverwriteAndInto() throws Exception {
+        List<InternalRow> emptyData = Collections.emptyList();
+
+        String outputTableName =
+                createAppendOnlyExternalTable(
+                        RowType.of(
+                                new DataType[] {
+                                    DataTypes.INT(),
+                                    DataTypes.INT(),
+                                    DataTypes.BIGINT(),
+                                    DataTypes.STRING()
+                                },
+                                new String[] {"pt", "a", "b", "c"}),
+                        Collections.singletonList("pt"),
+                        emptyData,
+                        "hive_test_table_output");
+
+        hiveShell.execute(
+                "insert overwrite table "
+                        + outputTableName
+                        + " values (1,2,3,'Hello'),(4,5,6,'Fine')");
+        hiveShell.execute(
+                "insert into  " + outputTableName + " values (1,2,3,'Hello'),(4,5,6,'Fine')");
+        List<String> select = hiveShell.executeQuery("select * from " + outputTableName);
+        assertThat(select)
+                .containsExactly(
+                        "1\t2\t3\tHello", "4\t5\t6\tFine", "1\t2\t3\tHello", "4\t5\t6\tFine");
+    }
+
+    @Test
+    public void testInsertIntoAndOverwrite() throws Exception {
+        List<InternalRow> emptyData = Collections.emptyList();
+
+        String outputTableName =
+                createAppendOnlyExternalTable(
+                        RowType.of(
+                                new DataType[] {
+                                    DataTypes.INT(),
+                                    DataTypes.INT(),
+                                    DataTypes.BIGINT(),
+                                    DataTypes.STRING()
+                                },
+                                new String[] {"pt", "a", "b", "c"}),
+                        Collections.singletonList("pt"),
+                        emptyData,
+                        "hive_test_table_output");
+        hiveShell.execute(
+                "insert into  " + outputTableName + " values (1,2,3,'Hello'),(4,5,6,'Fine')");
+
+        hiveShell.execute(
+                "insert overwrite table "
+                        + outputTableName
+                        + " values (1,2,3,'Hello'),(4,5,6,'Fine')");
+
+        List<String> select = hiveShell.executeQuery("select * from " + outputTableName);
+        assertThat(select).containsExactly("1\t2\t3\tHello", "4\t5\t6\tFine");
+    }
+
+    @Test
+    public void testInsertIntoPartition() throws Exception {
+        List<InternalRow> emptyData = Collections.emptyList();
+
+        hiveShell.execute(
+                "CREATE TABLE paimon_partition (\n"
+                        + "    `a`   STRING  comment '',\n"
+                        + "    `b`    STRING comment '',\n"
+                        + "    `c`    STRING comment ''\n"
+                        + ") PARTITIONED BY ( \n"
+                        + "    pt STRING\n"
+                        + ")\n"
+                        + "STORED BY 'org.apache.paimon.hive.PaimonStorageHandler'\n"
+                        + "TBLPROPERTIES (\n"
+                        + "    'primary-key' = 'a,pt'\n"
+                        + ");");
+
+        //        hiveShell.execute(
+        //                "insert overwrite table paimon_partition PARTITION (pt = '1') values
+        // (2,3,'Hello'),(5,6,'Fine')");
+        // move task pt=2 bucket hive4
+        hiveShell.execute(
+                "insert into table paimon_partition PARTITION (pt = '2') values (2,3,'Hello'),(5,6,'Fine')");
+        hiveShell.execute(
+                "insert into table paimon_partition PARTITION (pt = '2') values (1,4,'Hello'),(7,8,'Fine')");
+        List<String> select = hiveShell.executeQuery("select * from paimon_partition");
+        assertThat(select)
+                .containsExactly(
+                        "1\t4\tHello\t2", "2\t3\tHello\t2", "5\t6\tFine\t2", "7\t8\tFine\t2");
+    }
+
+    @Test
+    public void testInsertIntoDynamicPartition() throws Exception {
+        List<InternalRow> emptyData = Collections.emptyList();
+
+        hiveShell.execute(
+                "CREATE TABLE paimon_partition (\n"
+                        + "    `a`   STRING  comment '',\n"
+                        + "    `b`    STRING comment '',\n"
+                        + "    `c`    STRING comment ''\n"
+                        + ") PARTITIONED BY ( \n"
+                        + "    pt STRING\n"
+                        + ")\n"
+                        + "STORED BY 'org.apache.paimon.hive.PaimonStorageHandler'\n"
+                        + "TBLPROPERTIES (\n"
+                        + "    'primary-key' = 'a,pt'\n"
+                        + ");");
+        hiveShell.execute("set hive.exec.dynamic.partition.mode=nonstrict;");
+        hiveShell.execute("set hive.exec.dynamic.partition=true;");
+        hiveShell.execute(
+                "insert into table paimon_partition PARTITION (pt) values (2,3,'Hello',1),(5,6,'Fine',3)");
+        hiveShell.execute(
+                "insert into table paimon_partition PARTITION (pt) values (1,4,'Hello',2),(7,8,'Fine',4)");
+        List<String> select = hiveShell.executeQuery("select * from paimon_partition");
+        assertThat(select)
+                .containsExactly(
+                        "2\t3\tHello\t1", "1\t4\tHello\t2", "5\t6\tFine\t3", "7\t8\tFine\t4");
+    }
+
+    @Test
+    public void testInsertOverWriteDynamicPartition() throws Exception {
+        List<InternalRow> emptyData = Collections.emptyList();
+
+        hiveShell.execute(
+                "CREATE TABLE paimon_partition (\n"
+                        + "    `a`   STRING  comment '',\n"
+                        + "    `b`    STRING comment '',\n"
+                        + "    `c`    STRING comment ''\n"
+                        + ") PARTITIONED BY ( \n"
+                        + "    pt STRING\n"
+                        + ")\n"
+                        + "STORED BY 'org.apache.paimon.hive.PaimonStorageHandler'\n"
+                        + "TBLPROPERTIES (\n"
+                        + "    'primary-key' = 'a,pt'\n"
+                        + ");");
+        hiveShell.execute("set hive.exec.dynamic.partition.mode=nonstrict;");
+        hiveShell.execute("set hive.exec.dynamic.partition=true;");
+        hiveShell.execute(
+                "insert overwrite table paimon_partition PARTITION (pt) values (2,3,'Hello',1),(5,6,'Fine',3)");
+        hiveShell.execute(
+                "insert overwrite table paimon_partition PARTITION (pt) values (1,4,'Hello',1),(7,8,'Fine',3)");
+        List<String> select = hiveShell.executeQuery("select * from paimon_partition ");
+        assertThat(select).containsExactly("1\t4\tHello\t1", "7\t8\tFine\t3");
+    }
+
+    @Test
     public void testWriteOnlyWithChangeLogTableOption() throws Exception {
 
         String innerName = "hive_test_table_output";

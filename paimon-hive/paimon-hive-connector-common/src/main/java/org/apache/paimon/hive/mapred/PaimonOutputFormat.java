@@ -35,6 +35,8 @@ import org.apache.hadoop.mapred.OutputFormat;
 import org.apache.hadoop.mapred.RecordWriter;
 import org.apache.hadoop.mapred.TaskAttemptID;
 import org.apache.hadoop.util.Progressable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -47,6 +49,8 @@ import static org.apache.paimon.hive.utils.HiveUtils.createFileStoreTable;
 public class PaimonOutputFormat
         implements OutputFormat<NullWritable, RowDataContainer>,
                 HiveOutputFormat<NullWritable, RowDataContainer> {
+
+    private static final Logger LOG = LoggerFactory.getLogger(PaimonOutputFormat.class);
 
     private static final String TASK_ATTEMPT_ID_KEY = "mapreduce.task.attempt.id";
 
@@ -74,14 +78,19 @@ public class PaimonOutputFormat
 
     private static PaimonRecordWriter writer(JobConf jobConf) {
         TaskAttemptID taskAttemptID = TaskAttemptID.forName(jobConf.get(TASK_ATTEMPT_ID_KEY));
+
         FileStoreTable table = createFileStoreTable(jobConf);
+
+        Map<String, PaimonRecordWriter> writers = PaimonRecordWriter.getWriters(taskAttemptID);
+        if (writers != null) {
+            return writers.get(table.name());
+        }
         // force write-only = true
         Map<String, String> newOptions =
                 Collections.singletonMap(CoreOptions.WRITE_ONLY.key(), Boolean.TRUE.toString());
         FileStoreTable copy = table.copy(newOptions);
         BatchWriteBuilder batchWriteBuilder = copy.newBatchWriteBuilder();
         BatchTableWrite batchTableWrite = batchWriteBuilder.newWrite();
-
         return new PaimonRecordWriter(batchTableWrite, taskAttemptID, copy.name());
     }
 }

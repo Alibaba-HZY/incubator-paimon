@@ -47,7 +47,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import static org.apache.paimon.hive.PaimonStorageHandler.IS_OVERWRITE;
 import static org.apache.paimon.hive.utils.HiveUtils.createFileStoreTable;
+import static org.apache.paimon.hive.utils.HiveUtils.createHiveCatalogTable;
 
 /** A Paimon table committer for adding data files to the Paimon table. */
 public class PaimonOutputCommitter extends OutputCommitter {
@@ -135,10 +137,17 @@ public class PaimonOutputCommitter extends OutputCommitter {
 
         long startTime = System.currentTimeMillis();
         LOG.info("CommitJob {} has started", jobContext.getJobID());
-        FileStoreTable table = createFileStoreTable(jobConf);
+        FileStoreTable table = createHiveCatalogTable(jobConf);
 
         if (table != null) {
-            BatchWriteBuilder batchWriteBuilder = table.newBatchWriteBuilder();
+            boolean isOverwrite = jobConf.getBoolean(IS_OVERWRITE, false);
+
+            BatchWriteBuilder batchWriteBuilder;
+            if (isOverwrite) {
+                batchWriteBuilder = table.newBatchWriteBuilder().withOverwrite();
+            } else {
+                batchWriteBuilder = table.newBatchWriteBuilder();
+            }
             List<CommitMessage> commitMessagesList =
                     getAllPreCommitMessage(table.location(), jobContext, table.fileIO());
             try (BatchTableCommit batchTableCommit = batchWriteBuilder.newCommit()) {

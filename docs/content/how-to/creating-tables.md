@@ -164,7 +164,7 @@ CREATE TABLE MyTable (
 
 ```sql
 SET hive.metastore.warehouse.dir=warehouse_path;
-
+-- this table is partitioned in hive metastore
 CREATE TABLE MyTable (
     user_id BIGINT,
     item_id BIGINT,
@@ -176,6 +176,19 @@ CREATE TABLE MyTable (
 STORED BY 'org.apache.paimon.hive.PaimonStorageHandler'
 TBLPROPERTIES (
     'primary-key' = 'dt,hh,user_id'
+);
+-- this table is not partitioned in hive metastore
+CREATE TABLE MyTable (
+     user_id BIGINT,
+     item_id BIGINT,
+     behavior STRING,
+     dt STRING,
+     hh STRING
+)
+STORED BY 'org.apache.paimon.hive.PaimonStorageHandler'
+TBLPROPERTIES (
+    'primary-key' = 'dt,hh,user_id',
+    'partition'='dt,hh',
 );
 ```
 

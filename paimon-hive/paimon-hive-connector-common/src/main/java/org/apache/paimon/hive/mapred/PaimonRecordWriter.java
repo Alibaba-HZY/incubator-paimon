@@ -19,6 +19,7 @@
 
 package org.apache.paimon.hive.mapred;
 
+import org.apache.paimon.data.InternalRow;
 import org.apache.paimon.hive.RowDataContainer;
 import org.apache.paimon.table.sink.BatchTableWrite;
 
@@ -65,7 +66,8 @@ class PaimonRecordWriter
 
     public void write(Writable row) throws IOException {
         try {
-            batchTableWrite.write(((RowDataContainer) row).get());
+            InternalRow internalRow = ((RowDataContainer) row).get();
+            batchTableWrite.write(internalRow);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

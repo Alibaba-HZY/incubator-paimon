@@ -36,15 +36,26 @@ import org.apache.hadoop.hive.serde2.Deserializer;
 import org.apache.hadoop.mapred.InputFormat;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.OutputFormat;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.io.UnsupportedEncodingException;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.Properties;
+
+import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.HIVEQUERYSTRING;
 
 /** {@link HiveStorageHandler} for paimon. This is the entrance class of Hive API. */
 public class PaimonStorageHandler implements HiveStoragePredicateHandler, HiveStorageHandler {
 
+    private static final Logger LOG = LoggerFactory.getLogger(PaimonStorageHandler.class);
+
     private static final String MAPRED_OUTPUT_COMMITTER = "mapred.output.committer.class";
     private static final String PAIMON_WRITE = "paimon.write";
+    public static final String IS_OVERWRITE = "paimon.mr.write.is.overwrite";
+    public static final String INSERT_OVERWRITE = "insert overwrite";
 
     private Configuration conf;
 
@@ -104,6 +115,17 @@ public class PaimonStorageHandler implements HiveStoragePredicateHandler, HiveSt
                 && tableDesc.getProperties().get(PAIMON_WRITE) != null) {
 
             jobConf.set(MAPRED_OUTPUT_COMMITTER, PaimonOutputCommitter.class.getName());
+            try {
+                String sql =
+                        URLDecoder.decode(
+                                jobConf.get(HIVEQUERYSTRING.varname),
+                                StandardCharsets.UTF_8.name());
+                if (sql.toLowerCase().trim().startsWith(INSERT_OVERWRITE)) {
+                    jobConf.setBoolean(IS_OVERWRITE, true);
+                }
+            } catch (UnsupportedEncodingException e) {
+                LOG.error("Decode hive.query.string sql error :", e);
+            }
         }
     }
 

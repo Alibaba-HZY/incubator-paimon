@@ -93,8 +93,18 @@ public class HiveSchema {
                 .collect(Collectors.toList());
     }
 
+    public int getFieldIndex(String fieldName) {
+        return this.rowType.getFieldIndex(fieldName);
+    }
+
     /** Extract {@link HiveSchema} from Hive serde properties. */
     public static HiveSchema extract(@Nullable Configuration configuration, Properties properties) {
+        return extract(configuration, properties, false);
+    }
+
+    /** Extract {@link HiveSchema} from Hive serde properties. */
+    public static HiveSchema extract(
+            @Nullable Configuration configuration, Properties properties, boolean withPartition) {
         String location = LocationKeyExtractor.getPaimonLocation(configuration, properties);
         Optional<TableSchema> tableSchema = getExistingSchema(configuration, location);
         String columnProperty = properties.getProperty(hive_metastoreConstants.META_TABLE_COLUMNS);
@@ -139,7 +149,10 @@ public class HiveSchema {
                 StringUtils.isEmpty(partitionTypes)
                         ? Collections.emptyList()
                         : TypeInfoUtils.getTypeInfosFromTypeString(partitionTypes);
-
+        List<DataType> partitionDataTypes =
+                partitionTypeInfos.stream()
+                        .map(HiveTypeUtils::toPaimonType)
+                        .collect(Collectors.toList());
         String commentProperty = properties.getProperty("columns.comments");
         List<String> comments =
                 StringUtils.isEmpty(commentProperty)
@@ -188,6 +201,16 @@ public class HiveSchema {
         RowType.Builder builder = RowType.builder();
         for (int i = 0; i < columnNames.size(); i++) {
             builder.field(columnNames.get(i), dataTypes.get(i), comments.get(i));
+        }
+        if (withPartition) {
+            if (!partitionKeys.isEmpty()) {
+                for (int i = 0; i < partitionKeys.size(); i++) {
+                    builder.field(partitionKeys.get(i), partitionDataTypes.get(i), "");
+                }
+            } else if (tableSchema.isPresent()
+                    && builder.build().getFieldCount() < tableSchema.get().fields().size()) {
+                return new HiveSchema(new RowType(tableSchema.get().fields()));
+            }
         }
         return new HiveSchema(builder.build());
     }
