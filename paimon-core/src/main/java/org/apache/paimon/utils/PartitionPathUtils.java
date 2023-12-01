@@ -246,7 +246,7 @@ public class PartitionPathUtils {
         }
 
         for (int i = 0; i < kvs.size(); i++) {
-            fullPartSpec.put(kvs.get(i)[0], kvs.get(i)[1]);
+            fullPartSpec.put(kvs.get(i)[0].toLowerCase(), kvs.get(i)[1]);
         }
 
         return fullPartSpec;
