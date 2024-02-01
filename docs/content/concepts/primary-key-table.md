@@ -56,7 +56,8 @@ Paimon will automatically expand the number of buckets.
 - Option2: `'dynamic-bucket.assigner-parallelism'`: Parallelism of assigner operator, controls the number of initialized bucket.
 
 {{< hint info >}}
-Dynamic Bucket only support single write job. Please do not start multiple jobs to write to the same partition.
+Dynamic Bucket only support single write job. Please do not start multiple jobs to write to the same partition 
+(this can lead to duplicate data). Even if you enable `'write-only'` and start a dedicated compaction job, it won't work.
 {{< /hint >}}
 
 #### Normal Dynamic Bucket Mode
@@ -282,7 +283,7 @@ Field `price` will be aggregated by the `max` function, and field `sales` will b
 Current supported aggregate functions and data types are:
 
 * `sum`: supports DECIMAL, TINYINT, SMALLINT, INTEGER, BIGINT, FLOAT and DOUBLE.
-* `min`/`max`: support DECIMAL, TINYINT, SMALLINT, INTEGER, BIGINT, FLOAT, DOUBLE, DATE, TIME, TIMESTAMP and TIMESTAMP_LTZ.
+* `min`/`max`: support CHAR, VARCHAR, DECIMAL, TINYINT, SMALLINT, INTEGER, BIGINT, FLOAT, DOUBLE, DATE, TIME, TIMESTAMP and TIMESTAMP_LTZ.
 * `last_value` / `last_non_null_value`: support all data types.
 * `listagg`: supports STRING data type.
 * `bool_and` / `bool_or`: support BOOLEAN data type.
