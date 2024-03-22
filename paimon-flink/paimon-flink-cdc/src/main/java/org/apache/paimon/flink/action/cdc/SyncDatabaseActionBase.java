@@ -51,6 +51,8 @@ public abstract class SyncDatabaseActionBase extends SynchronizationActionBase {
     protected String includingTables = ".*";
     @Nullable protected String excludingTables;
     protected List<FileStoreTable> tables = new ArrayList<>();
+    protected List<String> extraColumnArgs = new ArrayList<>();
+    protected List<ExtraColumn> extraColumns = new ArrayList<>();
 
     public SyncDatabaseActionBase(
             String warehouse,
@@ -102,6 +104,11 @@ public abstract class SyncDatabaseActionBase extends SynchronizationActionBase {
         return this;
     }
 
+    public SyncDatabaseActionBase withExtraColumnArgs(List<String> extraColumnArgs) {
+        this.extraColumnArgs = extraColumnArgs;
+        return this;
+    }
+
     @Override
     protected void validateCaseSensitivity() {
         AbstractCatalog.validateCaseInsensitive(caseSensitive, "Database", database);
@@ -112,7 +119,11 @@ public abstract class SyncDatabaseActionBase extends SynchronizationActionBase {
     @Override
     protected FlatMapFunction<String, RichCdcMultiplexRecord> recordParse() {
         return syncJobHandler.provideRecordParser(
-                caseSensitive, Collections.emptyList(), typeMapping, metadataConverters);
+                caseSensitive,
+                Collections.emptyList(),
+                Collections.emptyList(),
+                typeMapping,
+                metadataConverters);
     }
 
     @Override

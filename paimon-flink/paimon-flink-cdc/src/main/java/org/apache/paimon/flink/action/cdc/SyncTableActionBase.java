@@ -42,6 +42,7 @@ import java.util.Map;
 
 import static org.apache.paimon.flink.action.cdc.CdcActionCommonUtils.assertSchemaCompatible;
 import static org.apache.paimon.flink.action.cdc.ComputedColumnUtils.buildComputedColumns;
+import static org.apache.paimon.flink.action.cdc.ExtraColumnUtils.buildExtraColumns;
 import static org.apache.paimon.utils.Preconditions.checkState;
 
 /** Base {@link Action} for synchronizing into one Paimon table. */
@@ -55,7 +56,9 @@ public abstract class SyncTableActionBase extends SynchronizationActionBase {
     protected List<String> partitionKeys = new ArrayList<>();
     protected List<String> primaryKeys = new ArrayList<>();
     protected List<String> computedColumnArgs = new ArrayList<>();
+    protected List<String> extraColumnArgs = new ArrayList<>();
     protected List<ComputedColumn> computedColumns = new ArrayList<>();
+    protected List<ExtraColumn> extraColumns = new ArrayList<>();
 
     public SyncTableActionBase(
             String warehouse,
@@ -96,6 +99,11 @@ public abstract class SyncTableActionBase extends SynchronizationActionBase {
         return this;
     }
 
+    public SyncTableActionBase withExtraColumnArgs(List<String> extraColumnArgs) {
+        this.extraColumnArgs = extraColumnArgs;
+        return this;
+    }
+
     protected abstract Schema retrieveSchema() throws Exception;
 
     protected Schema buildPaimonSchema(Schema retrievedSchema) {
@@ -104,6 +112,7 @@ public abstract class SyncTableActionBase extends SynchronizationActionBase {
                 partitionKeys,
                 primaryKeys,
                 computedColumns,
+                extraColumns,
                 tableConfig,
                 retrievedSchema,
                 metadataConverters,
@@ -128,6 +137,7 @@ public abstract class SyncTableActionBase extends SynchronizationActionBase {
                 Schema retrievedSchema = retrieveSchema();
                 computedColumns =
                         buildComputedColumns(computedColumnArgs, retrievedSchema.fields());
+                extraColumns = buildExtraColumns(extraColumnArgs, retrievedSchema.fields());
                 Schema paimonSchema = buildPaimonSchema(retrievedSchema);
                 assertSchemaCompatible(fileStoreTable.schema(), paimonSchema.fields());
             } catch (SchemaRetrievalException e) {
@@ -142,12 +152,16 @@ public abstract class SyncTableActionBase extends SynchronizationActionBase {
                                 computedColumnArgs,
                                 fileStoreTable.schema().fields(),
                                 caseSensitive);
+                extraColumns =
+                        buildExtraColumns(
+                                extraColumnArgs, fileStoreTable.schema().fields(), caseSensitive);
                 // check partition keys and primary keys in case that user specified them
                 checkConstraints();
             }
         } else {
             Schema retrievedSchema = retrieveSchema();
             computedColumns = buildComputedColumns(computedColumnArgs, retrievedSchema.fields());
+            extraColumns = buildExtraColumns(extraColumnArgs, retrievedSchema.fields());
             Schema paimonSchema = buildPaimonSchema(retrievedSchema);
             catalog.createTable(identifier, paimonSchema, false);
             fileStoreTable = (FileStoreTable) catalog.getTable(identifier).copy(tableConfig);
@@ -157,7 +171,7 @@ public abstract class SyncTableActionBase extends SynchronizationActionBase {
     @Override
     protected FlatMapFunction<String, RichCdcMultiplexRecord> recordParse() {
         return syncJobHandler.provideRecordParser(
-                caseSensitive, computedColumns, typeMapping, metadataConverters);
+                caseSensitive, computedColumns, extraColumns, typeMapping, metadataConverters);
     }
 
     @Override

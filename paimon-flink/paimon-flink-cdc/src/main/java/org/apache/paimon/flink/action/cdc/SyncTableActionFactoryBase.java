@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.apache.paimon.flink.action.cdc.CdcActionCommonUtils.COMPUTED_COLUMN;
+import static org.apache.paimon.flink.action.cdc.CdcActionCommonUtils.EXTRA_COLUMN;
 import static org.apache.paimon.flink.action.cdc.CdcActionCommonUtils.METADATA_COLUMN;
 import static org.apache.paimon.flink.action.cdc.CdcActionCommonUtils.PARTITION_KEYS;
 import static org.apache.paimon.flink.action.cdc.CdcActionCommonUtils.PRIMARY_KEYS;
@@ -61,7 +62,9 @@ public abstract class SyncTableActionFactoryBase
             action.withComputedColumnArgs(
                     new ArrayList<>(params.getMultiParameter(COMPUTED_COLUMN)));
         }
-
+        if (params.has(EXTRA_COLUMN)) {
+            action.withExtraColumnArgs(new ArrayList<>(params.getMultiParameter(EXTRA_COLUMN)));
+        }
         if (params.has(METADATA_COLUMN)) {
             List<String> metadataColumns =
                     new ArrayList<>(params.getMultiParameter(METADATA_COLUMN));

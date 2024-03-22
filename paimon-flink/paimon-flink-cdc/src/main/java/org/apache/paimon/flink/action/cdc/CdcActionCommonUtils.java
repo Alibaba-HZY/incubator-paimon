@@ -32,6 +32,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -65,6 +66,7 @@ public class CdcActionCommonUtils {
     public static final String PRIMARY_KEYS = "primary_keys";
     public static final String COMPUTED_COLUMN = "computed_column";
     public static final String METADATA_COLUMN = "metadata_column";
+    public static final String EXTRA_COLUMN = "extra_column";
 
     public static void assertSchemaCompatible(
             TableSchema paimonSchema, List<DataField> sourceTableFields) {
@@ -174,6 +176,30 @@ public class CdcActionCommonUtils {
             CdcMetadataConverter[] metadataConverters,
             boolean caseSensitive,
             boolean requirePrimaryKeys) {
+        return buildPaimonSchema(
+                tableName,
+                specifiedPartitionKeys,
+                specifiedPrimaryKeys,
+                computedColumns,
+                Collections.emptyList(),
+                tableConfig,
+                sourceSchema,
+                metadataConverters,
+                caseSensitive,
+                requirePrimaryKeys);
+    }
+
+    public static Schema buildPaimonSchema(
+            String tableName,
+            List<String> specifiedPartitionKeys,
+            List<String> specifiedPrimaryKeys,
+            List<ComputedColumn> computedColumns,
+            List<ExtraColumn> extraColumns,
+            Map<String, String> tableConfig,
+            Schema sourceSchema,
+            CdcMetadataConverter[] metadataConverters,
+            boolean caseSensitive,
+            boolean requirePrimaryKeys) {
         Schema.Builder builder = Schema.newBuilder();
 
         // options
@@ -199,6 +225,15 @@ public class CdcActionCommonUtils {
                             caseSensitive,
                             columnDuplicateErrMsg);
             builder.column(computedColumnName, computedColumn.columnType());
+        }
+        for (ExtraColumn extraColumn : extraColumns) {
+            String computedColumnName =
+                    columnCaseConvertAndDuplicateCheck(
+                            extraColumn.columnName(),
+                            existedFields,
+                            caseSensitive,
+                            columnDuplicateErrMsg);
+            builder.column(computedColumnName, extraColumn.columnType());
         }
 
         for (CdcMetadataConverter metadataConverter : metadataConverters) {

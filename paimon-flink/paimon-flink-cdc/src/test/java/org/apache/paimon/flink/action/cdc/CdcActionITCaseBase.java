@@ -270,6 +270,7 @@ public class CdcActionITCaseBase extends ActionITCaseBase {
         private final List<String> partitionKeys = new ArrayList<>();
         private final List<String> primaryKeys = new ArrayList<>();
         private final List<String> computedColumnArgs = new ArrayList<>();
+        private final List<String> extraColumnArgs = new ArrayList<>();
         private final List<String> typeMappingModes = new ArrayList<>();
         private final List<String> metadataColumns = new ArrayList<>();
 
@@ -307,6 +308,11 @@ public class CdcActionITCaseBase extends ActionITCaseBase {
             return this;
         }
 
+        public SyncTableActionBuilder<T> withExtraColumnArgs(List<String> extraColumnArgs) {
+            this.extraColumnArgs.addAll(extraColumnArgs);
+            return this;
+        }
+
         public SyncTableActionBuilder<T> withTypeMappingModes(String... typeMappingModes) {
             this.typeMappingModes.addAll(Arrays.asList(typeMappingModes));
             return this;
@@ -338,6 +344,7 @@ public class CdcActionITCaseBase extends ActionITCaseBase {
             args.addAll(listToArgs("--type-mapping", typeMappingModes));
 
             args.addAll(listToMultiArgs("--computed-column", computedColumnArgs));
+            args.addAll(listToMultiArgs("--extra-column", extraColumnArgs));
             args.addAll(listToMultiArgs("--metadata-column", metadataColumns));
 
             return createAction(clazz, args);

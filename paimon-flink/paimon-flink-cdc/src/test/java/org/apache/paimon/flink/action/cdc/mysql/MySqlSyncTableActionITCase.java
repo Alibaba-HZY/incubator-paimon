@@ -825,6 +825,73 @@ public class MySqlSyncTableActionITCase extends MySqlActionITCaseBase {
     }
 
     @Test
+    public void testExtraColumn() throws Exception {
+        // the first round checks for table creation
+        // the second round checks for running the action on an existing table
+        for (int i = 0; i < 2; i++) {
+            innerTestExtraColumn(i == 0);
+        }
+    }
+
+    private void innerTestExtraColumn(boolean executeMysql) throws Exception {
+        Map<String, String> mySqlConfig = getBasicMySqlConfig();
+        mySqlConfig.put("database-name", DATABASE_NAME);
+        mySqlConfig.put("table-name", "test_extra_column");
+
+        List<String> computedColumnDefs =
+                Arrays.asList(
+                        "prov=prov(河南)",
+                        "system_op_ts=system_op_ts()"); // test case-insensitive too
+
+        MySqlSyncTableAction action =
+                syncTableActionBuilder(mySqlConfig)
+                        .withPrimaryKeys("pk")
+                        .withExtraColumnArgs(computedColumnDefs)
+                        .withMetadataColumns("system_op_table", "system_op_db")
+                        .build();
+        JobClient jobClient = runActionWithDefaultEnv(action);
+
+        if (executeMysql) {
+            try (Statement statement = getStatement()) {
+                statement.execute("USE " + DATABASE_NAME);
+                statement.executeUpdate(
+                        "INSERT INTO test_extra_column VALUES (1, '2023-03-23', '2022-01-01 14:30', '2021-09-15 15:00:10')");
+                statement.executeUpdate(
+                        "INSERT INTO test_extra_column VALUES (2, '2023-03-23', null, null)");
+            }
+        }
+
+        FileStoreTable table = getFileStoreTable();
+        RowType rowType =
+                RowType.of(
+                        new DataType[] {
+                            DataTypes.INT().notNull(),
+                            DataTypes.DATE(),
+                            DataTypes.TIMESTAMP(0),
+                            DataTypes.TIMESTAMP(0),
+                            DataTypes.STRING(),
+                            DataTypes.TIMESTAMP(9),
+                            DataTypes.STRING().notNull(),
+                            DataTypes.STRING().notNull()
+                        },
+                        new String[] {
+                            "pk",
+                            "_date",
+                            "_datetime",
+                            "_timestamp",
+                            "prov",
+                            "system_op_ts",
+                            "system_op_table",
+                            "system_op_db"
+                        });
+        List<String> expected =
+                Arrays.asList(
+                        "+I[1, 19439, 2022-01-01T14:30, 2021-09-15T15:00:10, 河南, 2024-03-22T00:00:00.000000001, test_extra_column, paimon_sync_table]",
+                        "+I[2, 19439, NULL, NULL, 河南, 2024-03-22T00:00:00.000000001, test_extra_column, paimon_sync_table]");
+        waitForResult(expected, table, rowType, Arrays.asList("pk"));
+    }
+
+    @Test
     @Timeout(60)
     public void testTemporalToIntWithEpochTime() throws Exception {
         Map<String, String> mySqlConfig = getBasicMySqlConfig();

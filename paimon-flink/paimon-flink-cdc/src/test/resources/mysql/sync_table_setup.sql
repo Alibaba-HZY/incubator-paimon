@@ -280,6 +280,13 @@ CREATE TABLE test_computed_column (
     _timestamp TIMESTAMP,
     PRIMARY KEY (pk)
 );
+CREATE TABLE test_extra_column (
+                                      pk INT,
+                                      _date DATE,
+                                      _datetime DATETIME,
+                                      _timestamp TIMESTAMP,
+                                      PRIMARY KEY (pk)
+);
 
 CREATE TABLE test_time_to_int_epoch (
     pk INT,

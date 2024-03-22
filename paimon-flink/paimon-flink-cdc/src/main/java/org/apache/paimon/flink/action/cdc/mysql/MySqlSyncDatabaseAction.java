@@ -33,8 +33,8 @@ import org.apache.paimon.schema.TableSchema;
 import org.apache.paimon.table.FileStoreTable;
 import org.apache.paimon.utils.Preconditions;
 
-import com.ververica.cdc.connectors.mysql.source.MySqlSource;
-import com.ververica.cdc.connectors.mysql.source.config.MySqlSourceOptions;
+import org.apache.flink.cdc.connectors.mysql.source.MySqlSource;
+import org.apache.flink.cdc.connectors.mysql.source.config.MySqlSourceOptions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -51,6 +51,7 @@ import java.util.stream.Collectors;
 import static org.apache.paimon.flink.action.MultiTablesSinkMode.DIVIDED;
 import static org.apache.paimon.flink.action.cdc.CdcActionCommonUtils.schemaCompatible;
 import static org.apache.paimon.flink.action.cdc.CdcActionCommonUtils.tableList;
+import static org.apache.paimon.flink.action.cdc.ExtraColumnUtils.buildExtraColumns;
 import static org.apache.paimon.utils.Preconditions.checkArgument;
 
 /**
@@ -142,12 +143,15 @@ public class MySqlSyncDatabaseAction extends SyncDatabaseActionBase {
                     Identifier.create(
                             database, tableNameConverter.convert(tableInfo.toPaimonTableName()));
             FileStoreTable table;
+            extraColumns =
+                    buildExtraColumns(extraColumnArgs, tableInfo.schema().fields(), caseSensitive);
             Schema fromMySql =
                     CdcActionCommonUtils.buildPaimonSchema(
                             identifier.getFullName(),
                             Collections.emptyList(),
                             Collections.emptyList(),
                             Collections.emptyList(),
+                            extraColumns,
                             tableConfig,
                             tableInfo.schema(),
                             metadataConverters,

@@ -20,6 +20,7 @@ package org.apache.paimon.flink.action.cdc.mysql;
 
 import org.apache.paimon.flink.action.cdc.CdcMetadataConverter;
 import org.apache.paimon.flink.action.cdc.ComputedColumn;
+import org.apache.paimon.flink.action.cdc.ExtraColumn;
 import org.apache.paimon.flink.action.cdc.TypeMapping;
 import org.apache.paimon.flink.action.cdc.mysql.format.DebeziumEvent;
 import org.apache.paimon.flink.sink.cdc.CdcRecord;
@@ -35,7 +36,6 @@ import org.apache.paimon.shade.jackson2.com.fasterxml.jackson.databind.Deseriali
 import org.apache.paimon.shade.jackson2.com.fasterxml.jackson.databind.JsonNode;
 import org.apache.paimon.shade.jackson2.com.fasterxml.jackson.databind.ObjectMapper;
 
-import com.ververica.cdc.connectors.mysql.source.config.MySqlSourceOptions;
 import io.debezium.connector.AbstractSourceInfo;
 import io.debezium.data.Bits;
 import io.debezium.data.geometry.Geometry;
@@ -49,6 +49,7 @@ import io.debezium.time.MicroTimestamp;
 import io.debezium.time.Timestamp;
 import io.debezium.time.ZonedTimestamp;
 import org.apache.flink.api.common.functions.FlatMapFunction;
+import org.apache.flink.cdc.connectors.mysql.source.config.MySqlSourceOptions;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.util.Collector;
 import org.apache.kafka.connect.json.JsonConverterConfig;
@@ -94,6 +95,7 @@ public class MySqlRecordParser implements FlatMapFunction<String, RichCdcMultipl
     private final ZoneId serverTimeZone;
     private final boolean caseSensitive;
     private final List<ComputedColumn> computedColumns;
+    private final List<ExtraColumn> extraColumns;
     private final TypeMapping typeMapping;
 
     private DebeziumEvent root;
@@ -109,10 +111,12 @@ public class MySqlRecordParser implements FlatMapFunction<String, RichCdcMultipl
             Configuration mySqlConfig,
             boolean caseSensitive,
             List<ComputedColumn> computedColumns,
+            List<ExtraColumn> extraColumnss,
             TypeMapping typeMapping,
             CdcMetadataConverter[] metadataConverters) {
         this.caseSensitive = caseSensitive;
         this.computedColumns = computedColumns;
+        this.extraColumns = extraColumnss;
         this.typeMapping = typeMapping;
         this.metadataConverters = metadataConverters;
         objectMapper
@@ -365,6 +369,9 @@ public class MySqlRecordParser implements FlatMapFunction<String, RichCdcMultipl
             resultMap.put(
                     computedColumn.columnName(),
                     computedColumn.eval(resultMap.get(computedColumn.fieldReference())));
+        }
+        for (ExtraColumn computedColumn : extraColumns) {
+            resultMap.put(computedColumn.columnName(), computedColumn.eval());
         }
 
         for (CdcMetadataConverter metadataConverter : metadataConverters) {
