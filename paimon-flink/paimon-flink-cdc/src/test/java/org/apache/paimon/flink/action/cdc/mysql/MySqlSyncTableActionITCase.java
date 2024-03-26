@@ -834,9 +834,10 @@ public class MySqlSyncTableActionITCase extends MySqlActionITCaseBase {
     }
 
     private void innerTestExtraColumn(boolean executeMysql) throws Exception {
-        Map<String, String> mySqlConfig = getBasicMySqlConfig();
-        mySqlConfig.put("database-name", DATABASE_NAME);
+        Map<String, String> mySqlConfig = getDrdsMySqlConfig();
+        mySqlConfig.put("database-name", "test_drds_hzy");
         mySqlConfig.put("table-name", "test_extra_column");
+        mySqlConfig.put("scan.startup.mode", "snapshot");
 
         List<String> computedColumnDefs =
                 Arrays.asList(
@@ -868,7 +869,7 @@ public class MySqlSyncTableActionITCase extends MySqlActionITCaseBase {
                             DataTypes.INT().notNull(),
                             DataTypes.DATE(),
                             DataTypes.TIMESTAMP(0),
-                            DataTypes.TIMESTAMP(0),
+                            DataTypes.TIMESTAMP(0).notNull(),
                             DataTypes.STRING(),
                             DataTypes.TIMESTAMP(9),
                             DataTypes.STRING().notNull(),

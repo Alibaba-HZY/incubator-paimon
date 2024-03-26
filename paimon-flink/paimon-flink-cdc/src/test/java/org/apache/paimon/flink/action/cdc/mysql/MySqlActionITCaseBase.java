@@ -76,6 +76,22 @@ public class MySqlActionITCaseBase extends CdcActionITCaseBase {
         return conn.createStatement();
     }
 
+    protected Map<String, String> getDrdsMySqlConfig() {
+        Map<String, String> config = new HashMap<>();
+        config.put("hostname", "drdsfacb559s4238public.drds.aliyuncs.com");
+        config.put("port", "3306");
+        config.put("username", "test_drds_hzy");
+        config.put("password", "Dataphin123");
+        // see mysql/my.cnf in test resources
+        config.put("server-time-zone", ZoneId.of("Asia/Shanghai").toString());
+
+        // TODO When setting the parameter scan.newly-added-table.enabled=true in version 2.4.2, the
+        // Insert data inserted after the newly created table cannot be captured. When set to false,
+        // the mysql cdc works normally.
+        config.put("scan.newly-added-table.enabled", "false");
+        return config;
+    }
+
     protected Map<String, String> getBasicMySqlConfig() {
         Map<String, String> config = new HashMap<>();
         config.put("hostname", MYSQL_CONTAINER.getHost());

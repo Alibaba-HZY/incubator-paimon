@@ -177,6 +177,7 @@ public class MySqlActionUtils {
                 .ifPresent(sourceBuilder::heartbeatInterval);
 
         String startupMode = mySqlConfig.get(MySqlSourceOptions.SCAN_STARTUP_MODE);
+        LOG.warn("Startup mode: {}", startupMode);
         // see
         // https://github.com/ververica/flink-cdc-connectors/blob/master/flink-connector-mysql-cdc/src/main/java/com/ververica/cdc/connectors/mysql/table/MySqlTableSourceFactory.java#L196
         if ("initial".equalsIgnoreCase(startupMode)) {
