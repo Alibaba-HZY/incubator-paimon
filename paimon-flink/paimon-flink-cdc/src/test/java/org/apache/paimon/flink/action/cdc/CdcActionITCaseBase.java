@@ -368,6 +368,7 @@ public class CdcActionITCaseBase extends ActionITCaseBase {
         @Nullable private String mode;
         private final List<String> typeMappingModes = new ArrayList<>();
         private final List<String> metadataColumn = new ArrayList<>();
+        private final List<String> extraColumnArgs = new ArrayList<>();
 
         public SyncDatabaseActionBuilder(Class<T> clazz, Map<String, String> sourceConfig) {
             this.clazz = clazz;
@@ -424,6 +425,11 @@ public class CdcActionITCaseBase extends ActionITCaseBase {
             return this;
         }
 
+        public SyncDatabaseActionBuilder<T> withExtraColumnArgs(List<String> extraColumnArgs) {
+            this.extraColumnArgs.addAll(extraColumnArgs);
+            return this;
+        }
+
         public SyncDatabaseActionBuilder<T> withMetadataColumn(List<String> metadataColumn) {
             this.metadataColumn.addAll(metadataColumn);
             return this;
@@ -451,6 +457,7 @@ public class CdcActionITCaseBase extends ActionITCaseBase {
             args.addAll(nullableToArgs("--excluding-tables", excludingTables));
             args.addAll(nullableToArgs("--mode", mode));
 
+            args.addAll(listToMultiArgs("--extra-column", extraColumnArgs));
             args.addAll(listToArgs("--type-mapping", typeMappingModes));
             args.addAll(listToArgs("--metadata-column", metadataColumn));
 

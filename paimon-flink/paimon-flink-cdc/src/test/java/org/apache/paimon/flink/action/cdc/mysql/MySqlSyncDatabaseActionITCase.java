@@ -278,6 +278,59 @@ public class MySqlSyncDatabaseActionITCase extends MySqlActionITCaseBase {
     }
 
     @Test
+    //    @Timeout(60)
+    public void testExtraColumnTables() throws Exception {
+        // create an incompatible table
+        createFileStoreTable(
+                "incompatible",
+                RowType.of(
+                        new DataType[] {DataTypes.STRING(), DataTypes.STRING()},
+                        new String[] {"k", "v1"}),
+                Collections.emptyList(),
+                Collections.singletonList("k"),
+                Collections.emptyMap());
+
+        // try synchronization
+        Map<String, String> mySqlConfig = getBasicMySqlConfig();
+        mySqlConfig.put("database-name", "paimon_sync_database_ignore_incompatible");
+        List<String> computedColumnDefs =
+                Arrays.asList("prov=prov(河南)", "system_op_ts=system_op_ts()");
+        MySqlSyncDatabaseAction action =
+                syncDatabaseActionBuilder(mySqlConfig)
+                        .withTableConfig(getBasicTableConfig())
+                        .ignoreIncompatible(true)
+                        .withExtraColumnArgs(computedColumnDefs)
+                        .build();
+        JobClient jobClient = runActionWithDefaultEnv(action);
+
+        // validate `compatible` can be synchronized
+        try (Statement statement = getStatement()) {
+            FileStoreTable table = getFileStoreTable("compatible");
+
+            statement.executeUpdate("USE paimon_sync_database_ignore_incompatible");
+            statement.executeUpdate("INSERT INTO compatible VALUES (2, 'two', 20, 200)");
+            statement.executeUpdate("INSERT INTO compatible VALUES (4, 'four', 40, 400)");
+
+            RowType rowType =
+                    RowType.of(
+                            new DataType[] {
+                                DataTypes.INT().notNull(),
+                                DataTypes.VARCHAR(10).notNull(),
+                                DataTypes.INT(),
+                                DataTypes.BIGINT(),
+                                DataTypes.STRING(),
+                                DataTypes.TIMESTAMP(9)
+                            },
+                            new String[] {
+                                "k1", "k2", "v1", "v2", "prov", "system_op_ts",
+                            });
+            List<String> primaryKeys2 = Arrays.asList("k1", "k2");
+            List<String> expected = Arrays.asList("+I[2, two, 20, 200]", "+I[4, four, 40, 400]");
+            waitForResult(expected, table, rowType, primaryKeys2);
+        }
+    }
+
+    @Test
     @Timeout(60)
     public void testTableAffix() throws Exception {
         // create table t1

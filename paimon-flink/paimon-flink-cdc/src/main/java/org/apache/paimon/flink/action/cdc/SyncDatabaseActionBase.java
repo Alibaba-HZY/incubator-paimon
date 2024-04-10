@@ -121,7 +121,7 @@ public abstract class SyncDatabaseActionBase extends SynchronizationActionBase {
         return syncJobHandler.provideRecordParser(
                 caseSensitive,
                 Collections.emptyList(),
-                Collections.emptyList(),
+                extraColumns,
                 typeMapping,
                 metadataConverters);
     }
