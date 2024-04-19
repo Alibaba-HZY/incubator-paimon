@@ -63,6 +63,7 @@ public class LevelsTest {
 
     @Test
     public void testLevel0WithSameSequenceNumbers() {
+
         Levels levels = new Levels(comparator, Arrays.asList(newFile(0), newFile(0)), 3);
         assertThat(levels.allFiles()).hasSize(2);
     }
