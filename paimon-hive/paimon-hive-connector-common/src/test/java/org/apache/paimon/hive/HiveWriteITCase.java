@@ -18,6 +18,8 @@
 
 package org.apache.paimon.hive;
 
+import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.hadoop.minikdc.MiniKdc;
 import org.apache.paimon.CoreOptions;
 import org.apache.paimon.catalog.Identifier;
 import org.apache.paimon.data.BinaryString;
@@ -59,12 +61,14 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -323,10 +327,7 @@ public class HiveWriteITCase {
                         + "    'primary-key' = 'a,pt'\n"
                         + ");");
 
-        //        hiveShell.execute(
-        //                "insert overwrite table paimon_partition PARTITION (pt = '1') values
-        // (2,3,'Hello'),(5,6,'Fine')");
-        // move task pt=2 bucket hive4
+
         hiveShell.execute(
                 "insert into table paimon_partition PARTITION (pt = '2') values (2,3,'Hello'),(5,6,'Fine')");
         hiveShell.execute(
@@ -363,6 +364,110 @@ public class HiveWriteITCase {
         assertThat(select)
                 .containsExactly(
                         "2\t3\tHello\t1", "1\t4\tHello\t2", "5\t6\tFine\t3", "7\t8\tFine\t4");
+    }
+
+    @Test
+    public void testInsertOverwriteDynamicPartition() throws Exception {
+        List<InternalRow> emptyData = Collections.emptyList();
+
+        hiveShell.execute(
+                "CREATE TABLE paimon_partition (\n"
+                        + "    `a`   STRING  comment '',\n"
+                        + "    `b`    STRING comment '',\n"
+                        + "    `c`    STRING comment ''\n"
+                        + ") PARTITIONED BY ( \n"
+                        + "    pt STRING\n"
+                        + ")\n"
+                        + "STORED BY 'org.apache.paimon.hive.PaimonStorageHandler'\n"
+                        + "TBLPROPERTIES (\n"
+                        + "    'primary-key' = 'a,pt'\n"
+                        + ");");
+        hiveShell.execute("set hive.exec.dynamic.partition.mode=nonstrict;");
+        hiveShell.execute("set hive.exec.dynamic.partition=true;");
+        hiveShell.execute(
+                "insert overwrite table paimon_partition PARTITION (pt=1) values (2,3,'Hello'),(5,6,'Fine')");
+        List<String> select = hiveShell.executeQuery("select * from paimon_partition");
+        assertThat(select)
+                .containsExactly(
+                        "2\t3\tHello\t1", "1\t4\tHello\t2", "5\t6\tFine\t3", "7\t8\tFine\t4");
+    }
+
+    @Test
+    public void testInsertOverwriteDynamicPartition1() throws Exception {
+        List<InternalRow> emptyData = Collections.emptyList();
+
+        hiveShell.execute(
+                "CREATE TABLE paimon_partition (\n"
+                        + "    `a`   STRING  comment '',\n"
+                        + "    `b`    STRING comment ''\n"
+                        + ") PARTITIONED BY ( \n"
+                        + "    pt STRING,\n"
+                        + "    hh STRING\n"
+                        + ")\n"
+                        + "STORED BY 'org.apache.paimon.hive.PaimonStorageHandler'\n"
+                        + "TBLPROPERTIES (\n"
+                        + "    'primary-key' = 'a,pt,hh'\n"
+                        + ");");
+        hiveShell.execute("set hive.exec.dynamic.partition.mode=nonstrict;");
+        hiveShell.execute("set hive.exec.dynamic.partition=true;");
+        hiveShell.execute(
+                "insert overwrite table paimon_partition PARTITION (pt,hh) values (2,3,'1','1'),(5,6,'1','2')");
+        List<String> select = hiveShell.executeQuery("select * from paimon_partition");
+        assertThat(select)
+                .containsExactly(
+                        "2\t3\t1\t1", "5\t6\t1\t2");
+    }
+
+    @Test
+    public void testInsertIntoStaticPartitionAndStaticOverwrite() throws Exception {
+        List<InternalRow> emptyData = Collections.emptyList();
+
+        hiveShell.execute(
+                "CREATE TABLE paimon_partition (\n"
+                        + "    `a`   STRING  comment '',\n"
+                        + "    `b`    STRING comment '',\n"
+                        + "    `c`    STRING comment ''\n"
+                        + ") PARTITIONED BY ( \n"
+                        + "    pt STRING\n"
+                        + ")\n"
+                        + "STORED BY 'org.apache.paimon.hive.PaimonStorageHandler'\n"
+                        + "TBLPROPERTIES (\n"
+                        + "    'primary-key' = 'a,pt'\n"
+                        + ");");
+        hiveShell.execute("set hive.exec.dynamic.partition.mode=nonstrict;");
+        hiveShell.execute("set hive.exec.dynamic.partition=true;");
+        hiveShell.execute(
+                "insert into table paimon_partition PARTITION (pt=1) values (1,1,'Hello1'),(2,2,'Hello2')");
+        hiveShell.execute(
+                "insert overwrite table paimon_partition PARTITION (pt=3) values (3,3,'Fine3',3),(4,4,'Fine4',3)");
+        List<String> select = hiveShell.executeQuery("select * from paimon_partition");
+        assertThat(select)
+                .containsExactly(
+                        "2\t3\tHello\t1", "1\t4\tHello\t2", "5\t6\tFine\t3", "7\t8\tFine\t4");
+    }
+
+    @Test
+    public void testInsertIntoDynamicPartitionWithStatic() throws Exception {
+        List<InternalRow> emptyData = Collections.emptyList();
+
+        hiveShell.execute(
+                "CREATE TABLE paimon_partition (\n"
+                        + "    `a`   STRING  comment '',\n"
+                        + "    `b`    STRING comment ''\n"
+                        + ") PARTITIONED BY ( \n"
+                        + "    pt STRING,\n"
+                        + "    hh STRING\n"
+                        + ")\n"
+                        + "STORED BY 'org.apache.paimon.hive.PaimonStorageHandler'\n"
+                        + "TBLPROPERTIES (\n"
+                        + "    'primary-key' = 'a,pt,hh'\n"
+                        + ");");
+        hiveShell.execute("set hive.exec.dynamic.partition.mode=nonstrict;");
+        hiveShell.execute("set hive.exec.dynamic.partition=true;");
+        hiveShell.execute(
+                "insert into table paimon_partition PARTITION (pt='1',hh) values (1,1,'2'),(2,2,'4')");
+        List<String> select = hiveShell.executeQuery("select * from paimon_partition");
+        assertThat(select).containsExactly("1\t1\t1\t2", "2\t2\t1\t4");
     }
 
     @Test

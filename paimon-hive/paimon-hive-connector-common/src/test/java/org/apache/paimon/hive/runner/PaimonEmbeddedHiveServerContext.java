@@ -18,6 +18,10 @@
 
 package org.apache.paimon.hive.runner;
 
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.minikdc.MiniKdc;
+import org.apache.hadoop.security.SecurityUtil;
+import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.paimon.hive.TestHiveMetastore;
 
 import com.klarna.hiverunner.HiveServerContext;
@@ -30,7 +34,9 @@ import org.junit.rules.TemporaryFolder;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.net.InetAddress;
 import java.util.Map;
+import java.util.Properties;
 
 import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.HADOOPBIN;
 import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.HIVECONVERTJOIN;
@@ -51,6 +57,7 @@ import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTORE_VALIDATE_C
 import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTORE_VALIDATE_CONSTRAINTS;
 import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTORE_VALIDATE_TABLES;
 import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.SCRATCHDIR;
+import static org.apache.hadoop.security.UserGroupInformation.AuthenticationMethod.KERBEROS;
 
 /** HiveServerContext used by PaimonEmbeddedHiveRunner. */
 public class PaimonEmbeddedHiveServerContext implements HiveServerContext {
@@ -60,6 +67,11 @@ public class PaimonEmbeddedHiveServerContext implements HiveServerContext {
     private final TemporaryFolder basedir;
     private final HiveRunnerConfig hiveRunnerConfig;
     private final TestHiveMetastore testHiveMetastore;
+    private MiniKdc miniKdc;
+    private File kdcWorkDir;
+    String principal ;
+    File keytabFile = new File(kdcWorkDir, "hive.keytab");
+
     private boolean inited = false;
 
     PaimonEmbeddedHiveServerContext(TemporaryFolder basedir, HiveRunnerConfig hiveRunnerConfig) {
@@ -68,11 +80,47 @@ public class PaimonEmbeddedHiveServerContext implements HiveServerContext {
         this.testHiveMetastore = new TestHiveMetastore();
     }
 
+    private void setupMiniKDC() throws Exception {
+        kdcWorkDir = newFolder(basedir, "minikdc");
+        Properties kdcConf = MiniKdc.createConf();
+        miniKdc = new MiniKdc(kdcConf, kdcWorkDir);
+        miniKdc.start();
+    }
+    private void configureKerberos() throws Exception {
+        String principal = "hive/" +  InetAddress.getLocalHost().getCanonicalHostName();
+        File keytabFile = new File(kdcWorkDir, "hive.keytab");
+        miniKdc.createPrincipal(keytabFile, principal);
+
+        hiveConf.setVar(HiveConf.ConfVars.HIVE_SERVER2_AUTHENTICATION, "KERBEROS");
+        hiveConf.setVar(HiveConf.ConfVars.HIVE_SERVER2_KERBEROS_PRINCIPAL, principal + "@" + miniKdc.getRealm());
+        hiveConf.setVar(HiveConf.ConfVars.HIVE_SERVER2_KERBEROS_KEYTAB, keytabFile.getAbsolutePath());
+        hiveConf.setVar(HiveConf.ConfVars.METASTORE_KERBEROS_PRINCIPAL, principal + "@" + miniKdc.getRealm());
+        hiveConf.setVar(HiveConf.ConfVars.METASTORE_KERBEROS_KEYTAB_FILE, keytabFile.getAbsolutePath());
+        hiveConf.setBoolVar(HiveConf.ConfVars.METASTORE_USE_THRIFT_SASL, true);
+        hiveConf.set("yarn.resourcemanager.principal", principal + "@" + miniKdc.getRealm());
+
+        System.setProperty("java.security.krb5.conf", miniKdc.getKrb5conf().getAbsolutePath());
+
+        SecurityUtil.setAuthenticationMethod(
+                UserGroupInformation.AuthenticationMethod.KERBEROS, hiveConf);
+        SecurityUtil.setAuthenticationMethod(KERBEROS, hiveConf);
+        UserGroupInformation.setConfiguration(hiveConf);
+
+
+        UserGroupInformation userGroupInformation = UserGroupInformation.loginUserFromKeytabAndReturnUGI(principal + "@" + miniKdc.getRealm(), keytabFile.getAbsolutePath());
+
+    }
     @Override
     public final void init() {
         if (!inited) {
 
             configureMiscHiveSettings();
+            try {
+                setupMiniKDC();
+                configureKerberos();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
 
             configureMetaStore();
 
@@ -85,6 +133,7 @@ public class PaimonEmbeddedHiveServerContext implements HiveServerContext {
             configureFileSystem();
 
             configureAssertionStatus();
+
 
             overrideHiveConf();
 
@@ -151,9 +200,9 @@ public class PaimonEmbeddedHiveServerContext implements HiveServerContext {
     private void configureJavaSecurityRealm() {
         // These three properties gets rid of: 'Unable to load realm info from SCDynamicStore'
         // which seems to have a timeout of about 5 secs.
-        System.setProperty("java.security.krb5.realm", "EXAMPLE.COM");
-        System.setProperty("java.security.krb5.kdc", "kdc");
-        System.setProperty("java.security.krb5.conf", "/dev/null");
+//        System.setProperty("java.security.krb5.realm", "EXAMPLE.COM");
+//        System.setProperty("java.security.krb5.kdc", "kdc");
+//        System.setProperty("java.security.krb5.conf", "/dev/null");
     }
 
     private void configureAssertionStatus() {
@@ -173,7 +222,7 @@ public class PaimonEmbeddedHiveServerContext implements HiveServerContext {
         } catch (ClassNotFoundException e) {
             throw new RuntimeException(e);
         }
-        testHiveMetastore.start(hiveConf, 5);
+        testHiveMetastore.start(hiveConf, 5,9083);
 
         hiveConf.setBoolVar(METASTORE_VALIDATE_CONSTRAINTS, true);
         hiveConf.setBoolVar(METASTORE_VALIDATE_COLUMNS, true);

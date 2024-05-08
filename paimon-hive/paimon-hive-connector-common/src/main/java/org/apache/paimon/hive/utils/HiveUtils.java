@@ -18,13 +18,13 @@
 
 package org.apache.paimon.hive.utils;
 
+import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
 import org.apache.paimon.CoreOptions;
 import org.apache.paimon.catalog.Catalog;
 import org.apache.paimon.catalog.CatalogContext;
 import org.apache.paimon.catalog.CatalogFactory;
 import org.apache.paimon.catalog.CatalogUtils;
 import org.apache.paimon.catalog.Identifier;
-import org.apache.paimon.hive.HiveCatalogOptions;
 import org.apache.paimon.hive.LocationKeyExtractor;
 import org.apache.paimon.hive.SearchArgumentToPredicateConverter;
 import org.apache.paimon.options.Options;
@@ -67,7 +67,7 @@ public class HiveUtils {
     public static FileStoreTable createHiveCatalogTable(JobConf jobConf) {
         Options options = extractCatalogConfig(jobConf);
         String path = LocationKeyExtractor.getPaimonLocation(jobConf);
-        options.set(METASTORE, HiveCatalogOptions.IDENTIFIER);
+        options.set(METASTORE, "hive");
         options.set(CoreOptions.PATH, path);
         options.set(WAREHOUSE, CatalogUtils.warehouse(path));
         String thriftUri = jobConf.get(HiveConf.ConfVars.METASTOREURIS.varname);

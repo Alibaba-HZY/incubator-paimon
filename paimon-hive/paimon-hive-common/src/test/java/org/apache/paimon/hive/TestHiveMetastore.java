@@ -26,11 +26,21 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hive.common.auth.HiveAuthUtils;
 import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.hadoop.hive.metastore.HiveMetaException;
 import org.apache.hadoop.hive.metastore.HiveMetaStore;
 import org.apache.hadoop.hive.metastore.IHMSHandler;
+import org.apache.hadoop.hive.metastore.MetaStoreUtils;
 import org.apache.hadoop.hive.metastore.RetryingHMSHandler;
 import org.apache.hadoop.hive.metastore.TSetIpAddressProcessor;
+import org.apache.hadoop.hive.metastore.TUGIBasedProcessor;
+import org.apache.hadoop.hive.metastore.api.ThriftHiveMetastore;
+import org.apache.hadoop.hive.thrift.HadoopThriftAuthBridge;
+import org.apache.hadoop.hive.thrift.HadoopThriftAuthBridge23;
+import org.apache.hadoop.hive.thrift.HiveDelegationTokenManager;
+import org.apache.hadoop.hive.thrift.TUGIContainingTransport;
+import org.apache.thrift.TProcessor;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.server.TServer;
 import org.apache.thrift.server.TThreadPoolServer;
@@ -48,6 +58,8 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -68,6 +80,9 @@ public class TestHiveMetastore {
     // Therefore, we reuse the same derby root between tests and remove it after JVM exits.
     private static File hiveLocalDir;
     private static String derbyPath;
+    private static HadoopThriftAuthBridge.Server saslServer;
+    private static HiveDelegationTokenManager delegationTokenManager;
+    static boolean useSasl;
 
     static {
         setup();
@@ -138,12 +153,67 @@ public class TestHiveMetastore {
      */
     public void start(HiveConf conf, int poolSize, int portNum) {
         try {
-            TServerSocket socket = new TServerSocket(portNum);
-            int port = socket.getServerSocket().getLocalPort();
-            initConf(conf, port);
+            initConf(conf);
+            HadoopThriftAuthBridge bridge = new HadoopThriftAuthBridge23();
+            useSasl = conf.getBoolVar(HiveConf.ConfVars.METASTORE_USE_THRIFT_SASL);
+            TProcessor processor;
+            TTransportFactory transFactory;
+            TServerSocket serverSocket  = null;
+            HiveConf serverConf = new HiveConf(conf);
+            serverConf.set(
+                    HiveConf.ConfVars.METASTORECONNECTURLKEY.varname,
+                    "jdbc:derby:" + derbyPath + ";create=true");
+            baseHandler = new HiveMetaStore.HMSHandler("new db based metaserver", serverConf);
+            IHMSHandler handler = RetryingHMSHandler.getProxy(serverConf, baseHandler, false);
+            if (useSasl) {
+                // we are in secure mode.
 
+                saslServer = bridge.createServer(
+                        conf.getVar(HiveConf.ConfVars.METASTORE_KERBEROS_KEYTAB_FILE),
+                        conf.getVar(HiveConf.ConfVars.METASTORE_KERBEROS_PRINCIPAL));
+                // Start delegation token manager
+                delegationTokenManager = new HiveDelegationTokenManager();
+                delegationTokenManager.startDelegationTokenSecretManager(conf, baseHandler,
+                        HadoopThriftAuthBridge.Server.ServerMode.METASTORE);
+                saslServer.setSecretManager(delegationTokenManager.getSecretManager());
+                transFactory = saslServer.createTransportFactory(
+                        MetaStoreUtils.getMetaStoreSaslProperties(conf));
+                processor = saslServer.wrapProcessor(
+                        new ThriftHiveMetastore.Processor<IHMSHandler>(handler));
+                serverSocket = HiveAuthUtils.getServerSocket(null, portNum);
+
+            } else {
+                // we are in unsecure mode.
+                if (conf.getBoolVar(HiveConf.ConfVars.METASTORE_EXECUTE_SET_UGI)) {
+                    transFactory = new TUGIContainingTransport.Factory();
+
+                    processor = new TUGIBasedProcessor<IHMSHandler>(handler);
+                } else {
+                    transFactory = new TTransportFactory();
+                    processor = new TSetIpAddressProcessor<IHMSHandler>(handler);
+                }
+
+
+                serverSocket = HiveAuthUtils.getServerSocket(null, portNum);
+            }
+            int port = serverSocket.getServerSocket().getLocalPort();
+            conf.set(HiveConf.ConfVars.METASTOREURIS.varname, "thrift://localhost:" + port);
+
+
+
+            TThreadPoolServer.Args args =
+                    new TThreadPoolServer.Args(serverSocket)
+                            .processor(processor)
+                            .transportFactory(transFactory)
+                            .protocolFactory(new TBinaryProtocol.Factory())
+                            .minWorkerThreads(poolSize)
+                            .maxWorkerThreads(poolSize);
+
+
+
+            TThreadPoolServer tThreadPoolServer = new TThreadPoolServer(args);
             this.hiveConf = conf;
-            this.server = newThriftServer(socket, poolSize, hiveConf);
+            this.server = tThreadPoolServer;
             this.executorService = Executors.newSingleThreadExecutor();
             this.executorService.submit(() -> server.serve());
 
@@ -210,8 +280,7 @@ public class TestHiveMetastore {
         return new TThreadPoolServer(args);
     }
 
-    private void initConf(HiveConf conf, int port) {
-        conf.set(HiveConf.ConfVars.METASTOREURIS.varname, "thrift://localhost:" + port);
+    private void initConf(HiveConf conf) {
         conf.set(HiveConf.ConfVars.METASTOREWAREHOUSE.varname, warehouseDir());
         conf.set(HiveConf.ConfVars.METASTORE_TRY_DIRECT_SQL.varname, "false");
         conf.set(

@@ -46,6 +46,7 @@ import java.util.Map;
 import java.util.Properties;
 
 import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.HIVEQUERYSTRING;
+import static org.apache.paimon.utils.PartitionPathUtils.extractIsOverwriteFromSql;
 
 /** {@link HiveStorageHandler} for paimon. This is the entrance class of Hive API. */
 public class PaimonStorageHandler implements HiveStoragePredicateHandler, HiveStorageHandler {
@@ -120,9 +121,7 @@ public class PaimonStorageHandler implements HiveStoragePredicateHandler, HiveSt
                         URLDecoder.decode(
                                 jobConf.get(HIVEQUERYSTRING.varname),
                                 StandardCharsets.UTF_8.name());
-                if (sql.toLowerCase().trim().startsWith(INSERT_OVERWRITE)) {
-                    jobConf.setBoolean(IS_OVERWRITE, true);
-                }
+                jobConf.setBoolean(IS_OVERWRITE, extractIsOverwriteFromSql(sql));
             } catch (UnsupportedEncodingException e) {
                 LOG.error("Decode hive.query.string sql error :", e);
             }

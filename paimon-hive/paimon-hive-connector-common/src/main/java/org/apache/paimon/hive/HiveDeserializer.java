@@ -156,12 +156,12 @@ public class HiveDeserializer {
                         ((StructObjectInspector) pair.sourceInspector())
                                 .getStructFieldsDataAsList(o);
 
-                SchemaNameMappingObjectInspectorPair newPair = null;
-                if (pair instanceof SchemaNameMappingObjectInspectorPair) {
-                    newPair = (SchemaNameMappingObjectInspectorPair) pair;
-                }
+                SchemaNameMappingObjectInspectorPair newPair =
+                        (SchemaNameMappingObjectInspectorPair) pair;
                 GenericRow row = new GenericRow(deserializers.size());
-                for (int i = 0; i < data.size(); i++) {
+                int noPartitionedSize = deserializers.size() - newPair.fullPartSpec.size();
+                // set no-partitioned fields
+                for (int i = 0; i < noPartitionedSize; i++) {
                     Object fieldValue = data.get(i);
                     if (fieldValue != null) {
                         row.setField(i, deserializers.get(i).value(fieldValue));
@@ -169,14 +169,20 @@ public class HiveDeserializer {
                         row.setField(i, null);
                     }
                 }
-                int index = 0;
-                while (index < deserializers.size() - data.size()) {
-                    for (Map.Entry<String, String> part : newPair.fullPartSpec.entrySet()) {
+                // set partitioned fields
+                int index = noPartitionedSize;
+                int dynamicIndex = noPartitionedSize;
+                for (Map.Entry<String, String> part : newPair.fullPartSpec.entrySet()) {
+                    if ("__HIVE_DEFAULT_PARTITION__".equals(part.getValue())) {
+                        Object fieldValue = data.get(dynamicIndex++);
+                        row.setField(index, deserializers.get(index).value(fieldValue));
+                    } else {
                         row.setField(
-                                data.size() + index++,
+                                index,
                                 TypeUtils.castFromString(
                                         part.getValue(), newPair.fullPartType.get(part.getKey())));
                     }
+                    index++;
                 }
 
                 return row;

@@ -181,7 +181,7 @@ public class PaimonOutputCommitter extends OutputCommitter {
             try (BatchTableCommit batchTableCommit = batchWriteBuilder.newCommit()) {
                 batchTableCommit.abort(commitMessagesList);
             } catch (Exception e) {
-                throw new RuntimeException(e);
+                throw new IOException(e);
             }
             deleteTemporaryFile(
                     jobContext,
@@ -218,7 +218,7 @@ public class PaimonOutputCommitter extends OutputCommitter {
      * @return The list of the committed data files
      */
     private static List<CommitMessage> getAllPreCommitMessage(
-            Path location, JobContext jobContext, FileIO io) {
+            Path location, JobContext jobContext, FileIO io) throws IOException {
         JobConf conf = jobContext.getJobConf();
 
         int totalCommitMessagesSize =
@@ -274,12 +274,13 @@ public class PaimonOutputCommitter extends OutputCommitter {
         }
     }
 
-    private static List<CommitMessage> readPreCommitFile(Path location, FileIO io) {
+    private static List<CommitMessage> readPreCommitFile(Path location, FileIO io)
+            throws IOException {
         try (ObjectInputStream objectInputStream =
                 new ObjectInputStream(io.newInputStream(location))) {
             return (List<CommitMessage>) objectInputStream.readObject();
         } catch (ClassNotFoundException | IOException e) {
-            throw new RuntimeException(
+            throw new IOException(
                     String.format("Can not read or parse CommitMessage file: %s", location));
         }
     }

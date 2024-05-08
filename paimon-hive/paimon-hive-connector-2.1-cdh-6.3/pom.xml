@@ -35,6 +35,8 @@ under the License.
 
     <properties>
         <hive.version>2.1.1-cdh6.3.4</hive.version>
+        <libfb303.version>0.9.3</libfb303.version>
+        <libthrift.version>0.9.3</libthrift.version>
     </properties>
 
     <dependencies>
@@ -42,6 +44,16 @@ under the License.
             <groupId>org.apache.paimon</groupId>
             <artifactId>paimon-hive-connector-common</artifactId>
             <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.thrift</groupId>
+            <artifactId>libfb303</artifactId>
+            <version>${libfb303.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.thrift</groupId>
+            <artifactId>libthrift</artifactId>
+            <version>${libthrift.version}</version>
         </dependency>
     </dependencies>
 

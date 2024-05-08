@@ -35,6 +35,7 @@ import org.apache.paimon.schema.TableSchema;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.DefaultHiveMetaHook;
+import org.apache.hadoop.hive.metastore.HiveMetaHook;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.metastore.api.MetaException;
 import org.apache.hadoop.hive.metastore.api.Table;
@@ -51,13 +52,12 @@ import java.util.stream.Collectors;
 import static org.apache.hadoop.hive.metastore.Warehouse.getDnsPath;
 import static org.apache.paimon.CoreOptions.METASTORE_PARTITIONED_TABLE;
 import static org.apache.paimon.hive.HiveTypeUtils.toPaimonType;
-import static org.apache.paimon.hive.PaimonStorageHandler.IS_OVERWRITE;
 
 /**
  * {@link DefaultHiveMetaHook} for paimon. Currently this class is only used to set input and output
  * formats.
  */
-public class PaimonMetaHook extends DefaultHiveMetaHook {
+public class PaimonMetaHook implements HiveMetaHook {
 
     private static final Logger LOG = LoggerFactory.getLogger(PaimonMetaHook.class);
 
@@ -188,19 +188,5 @@ public class PaimonMetaHook extends DefaultHiveMetaHook {
         options.set(CoreOptions.PATH, location);
         table.getParameters().forEach(options::set);
         return CatalogContext.create(options, conf);
-    }
-
-    @Override
-    public void commitInsertTable(Table table, boolean overwrite) throws MetaException {}
-
-    @Override
-    public void preInsertTable(Table table, boolean overwrite) throws MetaException {
-        // non-partitioned insert
-        conf.setBoolean(IS_OVERWRITE, overwrite);
-    }
-
-    @Override
-    public void rollbackInsertTable(Table table, boolean overwrite) throws MetaException {
-        conf.setBoolean(IS_OVERWRITE, false);
     }
 }

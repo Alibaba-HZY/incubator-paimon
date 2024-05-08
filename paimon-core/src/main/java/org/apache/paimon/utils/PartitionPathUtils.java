@@ -34,10 +34,19 @@ public class PartitionPathUtils {
     private static final Pattern PARTITION_NAME_PATTERN = Pattern.compile("([^/]+)=([^/]+)");
 
     private static final Pattern STATIC_KEY_VALUE_PATTERN =
-            Pattern.compile("(\\w+)\\s*=\\s*'([^']+)'");
+            Pattern.compile("(\\w+)\\s*=\\s*(?:'([^']+)'|([^\\s,]+))");
+
     private static final Pattern DYNAMIC_PARTITION_PATTERN =
             Pattern.compile("PARTITION\\s+\\(([^\\)]+)\\)");
 
+
+    private static final Pattern INSERT_OVERWRITE_TABLE_PATTERN = Pattern.compile(
+            "\\binsert\\s+overwrite\\s+table\\b",
+            Pattern.CASE_INSENSITIVE);
+
+    private static final Pattern PARTITION_PATTERN = Pattern.compile(
+            "partition\\s*\\(\\s*([^\\s,]+?)(?:\\s*=\\s*(?:'([^']+)'|([^\\s,']+)))?\\s*(?:,\\s*([^\\s,]+?)(?:\\s*=\\s*(?:'([^']+)'|([^\\s,']+)))?\\s*)*\\)",
+            Pattern.CASE_INSENSITIVE);
     private static final BitSet CHAR_TO_ESCAPE = new BitSet(128);
 
     static {
@@ -223,6 +232,7 @@ public class PartitionPathUtils {
         LinkedHashMap<String, String> fullPartSpec = new LinkedHashMap<>();
         List<String[]> kvs = new ArrayList<>();
         Matcher matcher = DYNAMIC_PARTITION_PATTERN.matcher(sql);
+
         if (matcher.find()) {
             String partitionFieldStr = matcher.group(1);
             String[] partitions = partitionFieldStr.split(",");
@@ -230,15 +240,16 @@ public class PartitionPathUtils {
                 partition = partition.trim();
                 Matcher keyValueMatcher = STATIC_KEY_VALUE_PATTERN.matcher(partition);
                 if (keyValueMatcher.find()) {
-                    String key = unescapePathName(keyValueMatcher.group(1));
-                    String value = unescapePathName(keyValueMatcher.group(2));
+                    String key = keyValueMatcher.group(1);
+                    // support both single quote and zero quote
+                    String value = keyValueMatcher.group(2) != null ? keyValueMatcher.group(2) : keyValueMatcher.group(3);
                     String[] kv = new String[2];
                     kv[0] = key;
                     kv[1] = value;
                     kvs.add(kv);
                 } else {
                     String[] kv = new String[2];
-                    kv[0] = unescapePathName(partition);
+                    kv[0] = partition;
                     kv[1] = "__HIVE_DEFAULT_PARTITION__";
                     kvs.add(kv);
                 }
@@ -250,5 +261,14 @@ public class PartitionPathUtils {
         }
 
         return fullPartSpec;
+    }
+    public static boolean extractIsOverwriteFromSql(String sql){
+        Matcher matcher = INSERT_OVERWRITE_TABLE_PATTERN.matcher(sql);
+        return matcher.find();
+    }
+    public static void main(String[] args) {
+        LinkedHashMap<String, String> stringStringLinkedHashMap = extractDynamicPartitionSpecFromQuery(
+                "insert overwrite table paimon_partition PARTITION (pt=1,dt='1',a) values (2,3,'Hello'),(5,6,'Fine')");
+        System.out.println("");
     }
 }
