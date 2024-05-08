@@ -76,6 +76,7 @@ public abstract class MessageQueueSyncTableActionBase extends SyncTableActionBas
                 partitionKeys,
                 primaryKeys,
                 computedColumns,
+                extraColumns,
                 tableConfig,
                 retrievedSchema,
                 metadataConverters,

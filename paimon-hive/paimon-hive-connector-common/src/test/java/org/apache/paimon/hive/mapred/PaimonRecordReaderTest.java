@@ -114,14 +114,18 @@ public class PaimonRecordReaderTest {
                                 },
                                 new String[] {"a", "b", "c"}),
                         Collections.emptyList(),
-                        Collections.emptyList());
+                        Collections.singletonList("a"));
 
         StreamWriteBuilder streamWriteBuilder = table.newStreamWriteBuilder();
         StreamTableWrite write = streamWriteBuilder.newWrite();
         StreamTableCommit commit = streamWriteBuilder.newCommit();
-        write.write(GenericRow.of(1, 10L, BinaryString.fromString("Hi")));
-        write.write(GenericRow.of(2, 20L, BinaryString.fromString("Hello")));
-        write.write(GenericRow.of(1, 10L, BinaryString.fromString("Hi")));
+        write.write(GenericRow.of(1, 10L, BinaryString.fromString("Hi")),0);
+        write.write(GenericRow.of(2, 20L, BinaryString.fromString("Hello")),0);
+        write.write(GenericRow.of(1, 10L, BinaryString.fromString("Hi")),0);
+        commit.commit(0, write.prepareCommit(true, 0));
+        write.write(GenericRow.of(1, 10L, BinaryString.fromString("Hi")),0);
+        write.write(GenericRow.of(2, 20L, BinaryString.fromString("Hello")),0);
+        write.write(GenericRow.of(1, 10L, BinaryString.fromString("Hi")),0);
         commit.commit(0, write.prepareCommit(true, 0));
 
         write.close();
