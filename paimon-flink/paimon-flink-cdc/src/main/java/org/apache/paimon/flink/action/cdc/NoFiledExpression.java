@@ -95,6 +95,7 @@ public interface NoFiledExpression extends Serializable {
 
         private static final long serialVersionUID = 1L;
         private String defaultValue;
+        private int precision = 0;
 
         public SystemOpTsComputer(String defaultValue) {
             this.defaultValue = defaultValue;
@@ -102,7 +103,7 @@ public interface NoFiledExpression extends Serializable {
 
         @Override
         public DataType outputType() {
-            return DataTypes.TIMESTAMP(9);
+            return DataTypes.TIMESTAMP(precision);
         }
 
         @Override
@@ -119,9 +120,13 @@ public interface NoFiledExpression extends Serializable {
 
                 DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
                 String formattedDate = todayStart.format(formatter);
-                return String.format("%s.000000001", formattedDate);
+                return String.format("%s", formattedDate);
             } else {
-                return String.format("%s.000000001", defaultValue);
+                if(defaultValue.contains(".")) {
+                    String[] split = defaultValue.split("\\.");
+                    precision = split[1].length();
+                }
+                return String.format("%s", defaultValue);
             }
         }
     }
