@@ -32,7 +32,9 @@ import java.util.List;
 /** A {@link NoFiledExpression} is a function that computes a value from a set of input fields. */
 public interface NoFiledExpression extends Serializable {
 
-    List<String> SUPPORTED_EXPRESSION = Arrays.asList("prov", "system_op_ts");
+    List<String> SUPPORTED_EXPRESSION =
+            Arrays.asList(
+                    "prov", "system_op_ts", "system_op_table", "system_op_db", "system_op_traceid");
 
     /** Return {@link DataType} of computed value. */
     DataType outputType();
@@ -48,6 +50,10 @@ public interface NoFiledExpression extends Serializable {
                 return prov(defaultValue);
             case "system_op_ts":
                 return systemOpTs(defaultValue);
+            case "system_op_table":
+                return systemOPTableComputer(defaultValue);
+            case "system_op_db":
+                return systemOPDBComputer(defaultValue);
             default:
                 throw new UnsupportedOperationException(
                         String.format(
@@ -58,6 +64,18 @@ public interface NoFiledExpression extends Serializable {
 
     static NoFiledExpression prov(String defaultValue) {
         return new ProvComputer(defaultValue);
+    }
+
+    static NoFiledExpression systemOPTableComputer(String defaultValue) {
+        return new SystemOPTableComputer(defaultValue);
+    }
+
+    static NoFiledExpression systemOPDBComputer(String defaultValue) {
+        return new SystemOPDBComputer(defaultValue);
+    }
+
+    static NoFiledExpression systemOPTraceidComputer(String defaultValue) {
+        return new SystemOPTraceidComputer(defaultValue);
     }
 
     static NoFiledExpression systemOpTs(String defaultValue) {
@@ -71,6 +89,84 @@ public interface NoFiledExpression extends Serializable {
         private String defaultValue;
 
         public ProvComputer(String defaultValue) {
+            this.defaultValue = defaultValue;
+        }
+
+        @Override
+        public DataType outputType() {
+            return DataTypes.STRING();
+        }
+
+        @Override
+        public String defaultValue() {
+            return defaultValue;
+        }
+
+        @Override
+        public String eval() {
+            return defaultValue;
+        }
+    }
+
+    /** Expression to handle real table. */
+    final class SystemOPTableComputer implements NoFiledExpression {
+
+        private static final long serialVersionUID = 1L;
+        private String defaultValue;
+
+        public SystemOPTableComputer(String defaultValue) {
+            this.defaultValue = defaultValue;
+        }
+
+        @Override
+        public DataType outputType() {
+            return DataTypes.STRING();
+        }
+
+        @Override
+        public String defaultValue() {
+            return defaultValue;
+        }
+
+        @Override
+        public String eval() {
+            return defaultValue;
+        }
+    }
+
+    /** Expression to handle real db. */
+    final class SystemOPDBComputer implements NoFiledExpression {
+
+        private static final long serialVersionUID = 1L;
+        private String defaultValue;
+
+        public SystemOPDBComputer(String defaultValue) {
+            this.defaultValue = defaultValue;
+        }
+
+        @Override
+        public DataType outputType() {
+            return DataTypes.STRING();
+        }
+
+        @Override
+        public String defaultValue() {
+            return defaultValue;
+        }
+
+        @Override
+        public String eval() {
+            return defaultValue;
+        }
+    }
+
+    /** Expression to handle real db. */
+    final class SystemOPTraceidComputer implements NoFiledExpression {
+
+        private static final long serialVersionUID = 1L;
+        private String defaultValue;
+
+        public SystemOPTraceidComputer(String defaultValue) {
             this.defaultValue = defaultValue;
         }
 
@@ -122,7 +218,7 @@ public interface NoFiledExpression extends Serializable {
                 String formattedDate = todayStart.format(formatter);
                 return String.format("%s", formattedDate);
             } else {
-                if(defaultValue.contains(".")) {
+                if (defaultValue.contains(".")) {
                     String[] split = defaultValue.split("\\.");
                     precision = split[1].length();
                 }

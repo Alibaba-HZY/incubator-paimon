@@ -60,7 +60,7 @@ public interface CdcMetadataConverter extends Serializable {
 
         @Override
         public String columnName() {
-            return "system_op_db";
+            return "database";
         }
     }
 
@@ -80,7 +80,7 @@ public interface CdcMetadataConverter extends Serializable {
 
         @Override
         public String columnName() {
-            return "system_op_table";
+            return "table";
         }
     }
 
