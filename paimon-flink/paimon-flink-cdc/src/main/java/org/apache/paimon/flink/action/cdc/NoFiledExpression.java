@@ -34,7 +34,11 @@ public interface NoFiledExpression extends Serializable {
 
     List<String> SUPPORTED_EXPRESSION =
             Arrays.asList(
-                    "prov", "system_op_ts", "system_op_table", "system_op_db", "system_op_traceid");
+                    "PROV",
+                    "SYSTEM_OP_TS",
+                    "SYSTEM_PHYSICAL_TABLE",
+                    "SYSTEM_PHYSICAL_DB",
+                    "SYSTEM_OP_TRACEID");
 
     /** Return {@link DataType} of computed value. */
     DataType outputType();
@@ -46,13 +50,15 @@ public interface NoFiledExpression extends Serializable {
 
     static NoFiledExpression create(String exprName, String defaultValue, String... literals) {
         switch (exprName.toLowerCase()) {
-            case "prov":
+            case "PROV":
                 return prov(defaultValue);
-            case "system_op_ts":
+            case "SYSTEM_OP_TS":
                 return systemOpTs(defaultValue);
-            case "system_op_table":
+            case "SYSTEM_OP_TRACEID":
+                return systemOPTraceidComputer(defaultValue);
+            case "SYSTEM_PHYSICAL_TABLE":
                 return systemOPTableComputer(defaultValue);
-            case "system_op_db":
+            case "SYSTEM_PHYSICAL_DB":
                 return systemOPDBComputer(defaultValue);
             default:
                 throw new UnsupportedOperationException(
