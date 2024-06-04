@@ -20,14 +20,15 @@ package org.apache.paimon.spark
 
 import org.apache.paimon.CoreOptions
 import org.apache.paimon.io.DataFileMeta
-import org.apache.paimon.table.source.{DataSplit, DeletionFile, RawFile, Split}
+import org.apache.paimon.table.source.{DataSplit, DeletionFile, Split}
 
+import org.apache.spark.internal.Logging
 import org.apache.spark.sql.SparkSession
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable.ArrayBuffer
 
-trait ScanHelper {
+trait ScanHelper extends Logging {
 
   private val spark = SparkSession.active
 
@@ -45,12 +46,15 @@ trait ScanHelper {
 
   def reshuffleSplits(splits: Array[Split]): Array[Split] = {
     if (splits.length < leafNodeDefaultParallelism) {
+      val beforeLength = splits.length
       val (toReshuffle, reserved) = splits.partition {
         case split: DataSplit => split.beforeFiles().isEmpty && split.convertToRawFiles.isPresent
         case _ => false
       }
       val reshuffled = reshuffleSplits0(toReshuffle.collect { case ds: DataSplit => ds })
-      reshuffled ++ reserved
+      val all = reshuffled ++ reserved
+      logInfo(s"Reshuffle splits from $beforeLength to ${all.length}")
+      all
     } else {
       splits
     }
@@ -64,25 +68,22 @@ trait ScanHelper {
     var currentSplit: Option[DataSplit] = None
     val currentDataFiles = new ArrayBuffer[DataFileMeta]
     val currentDeletionFiles = new ArrayBuffer[DeletionFile]
-    val currentRawFiles = new ArrayBuffer[RawFile]
     var currentSize = 0L
 
     def closeDataSplit(): Unit = {
       if (currentSplit.nonEmpty && currentDataFiles.nonEmpty) {
         val newSplit =
-          copyDataSplit(currentSplit.get, currentDataFiles, currentDeletionFiles, currentRawFiles)
+          copyDataSplit(currentSplit.get, currentDataFiles, currentDeletionFiles)
         newSplits += newSplit
       }
       currentDataFiles.clear()
       currentDeletionFiles.clear()
-      currentRawFiles.clear()
       currentSize = 0
     }
 
     splits.foreach {
       split =>
         currentSplit = Some(split)
-        val hasRawFiles = split.convertToRawFiles().isPresent
 
         split.dataFiles().asScala.zipWithIndex.foreach {
           case (file, idx) =>
@@ -93,9 +94,6 @@ trait ScanHelper {
             currentDataFiles += file
             if (deletionVectors) {
               currentDeletionFiles += split.deletionFiles().get().get(idx)
-            }
-            if (hasRawFiles) {
-              currentRawFiles += split.convertToRawFiles().get().get(idx)
             }
         }
         closeDataSplit()
@@ -115,15 +113,15 @@ trait ScanHelper {
   private def copyDataSplit(
       split: DataSplit,
       dataFiles: Seq[DataFileMeta],
-      deletionFiles: Seq[DeletionFile],
-      rawFiles: Seq[RawFile]): DataSplit = {
+      deletionFiles: Seq[DeletionFile]): DataSplit = {
     val builder = DataSplit
       .builder()
       .withSnapshot(split.snapshotId())
       .withPartition(split.partition())
       .withBucket(split.bucket())
       .withDataFiles(dataFiles.toList.asJava)
-      .rawFiles(rawFiles.toList.asJava)
+      .rawConvertible(split.rawConvertible())
+      .withBucketPath(split.bucketPath)
     if (deletionVectors) {
       builder.withDataDeletionFiles(deletionFiles.toList.asJava)
     }
@@ -140,5 +138,4 @@ trait ScanHelper {
 
     Math.min(defaultMaxSplitBytes, Math.max(openCostInBytes, bytesPerCore))
   }
-
 }

@@ -23,13 +23,16 @@ import org.apache.paimon.KeyValue;
 import org.apache.paimon.compact.CompactResult;
 import org.apache.paimon.data.InternalRow;
 import org.apache.paimon.io.DataFileMeta;
-import org.apache.paimon.io.KeyValueFileReaderFactory;
+import org.apache.paimon.io.FileReaderFactory;
 import org.apache.paimon.io.KeyValueFileWriterFactory;
 import org.apache.paimon.io.RollingFileWriter;
+import org.apache.paimon.manifest.FileSource;
 import org.apache.paimon.mergetree.MergeSorter;
 import org.apache.paimon.mergetree.SortedRun;
 import org.apache.paimon.utils.CloseableIterator;
+import org.apache.paimon.utils.ExceptionUtils;
 import org.apache.paimon.utils.FieldsComparator;
+import org.apache.paimon.utils.IOUtils;
 
 import javax.annotation.Nullable;
 
@@ -51,7 +54,7 @@ public abstract class ChangelogMergeTreeRewriter extends MergeTreeCompactRewrite
     public ChangelogMergeTreeRewriter(
             int maxLevel,
             MergeEngine mergeEngine,
-            KeyValueFileReaderFactory readerFactory,
+            FileReaderFactory<KeyValue> readerFactory,
             KeyValueFileWriterFactory writerFactory,
             Comparator<InternalRow> keyComparator,
             @Nullable FieldsComparator userDefinedSeqComparator,
@@ -75,7 +78,7 @@ public abstract class ChangelogMergeTreeRewriter extends MergeTreeCompactRewrite
     protected abstract boolean rewriteChangelog(
             int outputLevel, boolean dropDelete, List<List<SortedRun>> sections);
 
-    protected abstract UpgradeStrategy upgradeChangelog(int outputLevel, DataFileMeta file);
+    protected abstract UpgradeStrategy upgradeStrategy(int outputLevel, DataFileMeta file);
 
     protected abstract MergeFunctionWrapper<ChangelogResult> createMergeWrapper(int outputLevel);
 
@@ -100,19 +103,19 @@ public abstract class ChangelogMergeTreeRewriter extends MergeTreeCompactRewrite
     public CompactResult rewrite(
             int outputLevel, boolean dropDelete, List<List<SortedRun>> sections) throws Exception {
         if (rewriteChangelog(outputLevel, dropDelete, sections)) {
-            return rewriteChangelogCompaction(outputLevel, sections, dropDelete, true);
+            return rewriteOrProduceChangelog(outputLevel, sections, dropDelete, true);
         } else {
             return rewriteCompaction(outputLevel, dropDelete, sections);
         }
     }
 
     /**
-     * Rewrite and produce changelog at the same time.
+     * Rewrite or produce changelog at the same time.
      *
      * @param dropDelete whether to drop delete when rewrite compact file
      * @param rewriteCompactFile whether to rewrite compact file
      */
-    private CompactResult rewriteChangelogCompaction(
+    private CompactResult rewriteOrProduceChangelog(
             int outputLevel,
             List<List<SortedRun>> sections,
             boolean dropDelete,
@@ -122,13 +125,16 @@ public abstract class ChangelogMergeTreeRewriter extends MergeTreeCompactRewrite
         CloseableIterator<ChangelogResult> iterator = null;
         RollingFileWriter<KeyValue, DataFileMeta> compactFileWriter = null;
         RollingFileWriter<KeyValue, DataFileMeta> changelogFileWriter = null;
+        Exception collectedExceptions = null;
 
         try {
             iterator =
                     readerForMergeTree(sections, createMergeWrapper(outputLevel))
                             .toCloseableIterator();
             if (rewriteCompactFile) {
-                compactFileWriter = writerFactory.createRollingMergeTreeFileWriter(outputLevel);
+                compactFileWriter =
+                        writerFactory.createRollingMergeTreeFileWriter(
+                                outputLevel, FileSource.COMPACT);
             }
             if (produceChangelog) {
                 changelogFileWriter = writerFactory.createRollingChangelogFileWriter(outputLevel);
@@ -148,16 +154,20 @@ public abstract class ChangelogMergeTreeRewriter extends MergeTreeCompactRewrite
                     }
                 }
             }
+        } catch (Exception e) {
+            collectedExceptions = e;
         } finally {
-            if (iterator != null) {
-                iterator.close();
+            try {
+                IOUtils.closeAll(iterator, compactFileWriter, changelogFileWriter);
+            } catch (Exception e) {
+                collectedExceptions = ExceptionUtils.firstOrSuppressed(e, collectedExceptions);
             }
-            if (compactFileWriter != null) {
-                compactFileWriter.close();
-            }
-            if (changelogFileWriter != null) {
-                changelogFileWriter.close();
-            }
+        }
+
+        if (null != collectedExceptions) {
+            compactFileWriter.abort();
+            changelogFileWriter.abort();
+            throw collectedExceptions;
         }
 
         List<DataFileMeta> before = extractFilesFromSections(sections);
@@ -168,7 +178,9 @@ public abstract class ChangelogMergeTreeRewriter extends MergeTreeCompactRewrite
                                 .map(x -> x.upgrade(outputLevel))
                                 .collect(Collectors.toList());
 
-        notifyCompactBefore(before);
+        if (rewriteCompactFile) {
+            notifyRewriteCompactBefore(before);
+        }
 
         List<DataFileMeta> changelogFiles =
                 changelogFileWriter != null
@@ -179,9 +191,9 @@ public abstract class ChangelogMergeTreeRewriter extends MergeTreeCompactRewrite
 
     @Override
     public CompactResult upgrade(int outputLevel, DataFileMeta file) throws Exception {
-        UpgradeStrategy strategy = upgradeChangelog(outputLevel, file);
+        UpgradeStrategy strategy = upgradeStrategy(outputLevel, file);
         if (strategy.changelog) {
-            return rewriteChangelogCompaction(
+            return rewriteOrProduceChangelog(
                     outputLevel,
                     Collections.singletonList(
                             Collections.singletonList(SortedRun.fromSingle(file))),
@@ -194,7 +206,7 @@ public abstract class ChangelogMergeTreeRewriter extends MergeTreeCompactRewrite
 
     /** Strategy for upgrade. */
     protected enum UpgradeStrategy {
-        NO_CHANGELOG(false, false),
+        NO_CHANGELOG_NO_REWRITE(false, false),
         CHANGELOG_NO_REWRITE(true, false),
         CHANGELOG_WITH_REWRITE(true, true);
 

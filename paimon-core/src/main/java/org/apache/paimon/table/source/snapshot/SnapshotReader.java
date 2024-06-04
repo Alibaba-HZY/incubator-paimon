@@ -21,8 +21,10 @@ package org.apache.paimon.table.source.snapshot;
 import org.apache.paimon.Snapshot;
 import org.apache.paimon.consumer.ConsumerManager;
 import org.apache.paimon.data.BinaryRow;
+import org.apache.paimon.manifest.PartitionEntry;
 import org.apache.paimon.metrics.MetricRegistry;
 import org.apache.paimon.predicate.Predicate;
+import org.apache.paimon.table.BucketMode;
 import org.apache.paimon.table.source.DataSplit;
 import org.apache.paimon.table.source.ScanMode;
 import org.apache.paimon.table.source.Split;
@@ -53,6 +55,8 @@ public interface SnapshotReader {
 
     SnapshotReader withPartitionFilter(Map<String, String> partitionSpec);
 
+    SnapshotReader withPartitionFilter(Predicate predicate);
+
     SnapshotReader withMode(ScanMode scanMode);
 
     SnapshotReader withLevelFilter(Filter<Integer> levelFilter);
@@ -62,6 +66,21 @@ public interface SnapshotReader {
     SnapshotReader withBucket(int bucket);
 
     SnapshotReader withBucketFilter(Filter<Integer> bucketFilter);
+
+    SnapshotReader withDataFileNameFilter(Filter<String> fileNameFilter);
+
+    default SnapshotReader withShard(
+            BucketMode bucketMode, int indexOfThisSubtask, int numberOfParallelSubtasks) {
+        if (bucketMode == BucketMode.BUCKET_UNAWARE) {
+            withDataFileNameFilter(
+                    file ->
+                            Math.abs(file.hashCode() % numberOfParallelSubtasks)
+                                    == indexOfThisSubtask);
+        } else {
+            withBucketFilter(bucket -> bucket % numberOfParallelSubtasks == indexOfThisSubtask);
+        }
+        return this;
+    }
 
     SnapshotReader withMetricRegistry(MetricRegistry registry);
 
@@ -73,8 +92,10 @@ public interface SnapshotReader {
 
     Plan readIncrementalDiff(Snapshot before);
 
-    /** Get partitions from a snapshot. */
+    /** List partitions. */
     List<BinaryRow> partitions();
+
+    List<PartitionEntry> partitionEntries();
 
     /** Result plan of this scan. */
     interface Plan extends TableScan.Plan {

@@ -18,14 +18,16 @@
 
 package org.apache.paimon.spark
 
+import org.apache.paimon.CoreOptions
 import org.apache.paimon.operation.FileStoreCommit
 import org.apache.paimon.table.FileStoreTable
 import org.apache.paimon.table.sink.BatchWriteBuilder
 import org.apache.paimon.types.RowType
-import org.apache.paimon.utils.{FileStorePathFactory, RowDataPartitionComputer}
+import org.apache.paimon.utils.InternalRowPartitionComputer
 
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.catalyst.{CatalystTypeConverters, InternalRow}
+import org.apache.spark.sql.catalyst.util.CharVarcharUtils
 import org.apache.spark.sql.connector.catalog.SupportsPartitionManagement
 import org.apache.spark.sql.types.StructType
 
@@ -50,11 +52,11 @@ trait PaimonPartitionManagement extends SupportsPartitionManagement {
   override def dropPartition(internalRow: InternalRow): Boolean = {
     // convert internalRow to row
     val row: Row = CatalystTypeConverters
-      .createToScalaConverter(partitionSchema())
+      .createToScalaConverter(CharVarcharUtils.replaceCharVarcharWithString(partitionSchema()))
       .apply(internalRow)
       .asInstanceOf[Row]
-    val rowDataPartitionComputer = new RowDataPartitionComputer(
-      FileStorePathFactory.PARTITION_DEFAULT_NAME.defaultValue,
+    val rowDataPartitionComputer = new InternalRowPartitionComputer(
+      CoreOptions.PARTITION_DEFAULT_NAME.defaultValue,
       tableRowType,
       partitionKeys.asScala.toArray)
     val partitionMap = rowDataPartitionComputer.generatePartValues(new SparkRow(tableRowType, row))

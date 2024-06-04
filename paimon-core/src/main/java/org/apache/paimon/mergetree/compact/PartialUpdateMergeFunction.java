@@ -74,7 +74,6 @@ public class PartialUpdateMergeFunction implements MergeFunction<KeyValue> {
 
     private InternalRow currentKey;
     private long latestSequenceNumber;
-    private boolean isEmpty;
     private GenericRow row;
     private KeyValue reused;
 
@@ -96,7 +95,6 @@ public class PartialUpdateMergeFunction implements MergeFunction<KeyValue> {
         this.currentKey = null;
         this.row = new GenericRow(getters.length);
         fieldAggregators.values().forEach(FieldAggregator::reset);
-        this.isEmpty = true;
     }
 
     @Override
@@ -104,8 +102,9 @@ public class PartialUpdateMergeFunction implements MergeFunction<KeyValue> {
         // refresh key object to avoid reference overwritten
         currentKey = kv.key();
 
-        // ignore delete?
         if (kv.valueKind().isRetract()) {
+            // In 0.7- versions, the delete records might be written into data file even when
+            // ignore-delete configured, so ignoreDelete still needs to be checked
             if (ignoreDelete) {
                 return;
             }
@@ -120,14 +119,13 @@ public class PartialUpdateMergeFunction implements MergeFunction<KeyValue> {
                             "\n",
                             "By default, Partial update can not accept delete records,"
                                     + " you can choose one of the following solutions:",
-                            "1. Configure 'partial-update.ignore-delete' to ignore delete records.",
+                            "1. Configure 'ignore-delete' to ignore delete records.",
                             "2. Configure 'sequence-group's to retract partial columns.");
 
             throw new IllegalArgumentException(msg);
         }
 
         latestSequenceNumber = kv.sequenceNumber();
-        isEmpty = false;
         if (fieldSequences.isEmpty()) {
             updateNonNullFields(kv);
         } else {
@@ -211,12 +209,7 @@ public class PartialUpdateMergeFunction implements MergeFunction<KeyValue> {
     }
 
     @Override
-    @Nullable
     public KeyValue getResult() {
-        if (isEmpty) {
-            return null;
-        }
-
         if (reused == null) {
             reused = new KeyValue();
         }
@@ -239,7 +232,7 @@ public class PartialUpdateMergeFunction implements MergeFunction<KeyValue> {
         private final Map<Integer, FieldAggregator> fieldAggregators;
 
         private Factory(Options options, RowType rowType, List<String> primaryKeys) {
-            this.ignoreDelete = options.get(CoreOptions.PARTIAL_UPDATE_IGNORE_DELETE);
+            this.ignoreDelete = options.get(CoreOptions.IGNORE_DELETE);
             this.tableTypes = rowType.getFieldTypes();
 
             List<String> fieldNames = rowType.getFieldNames();
@@ -381,6 +374,7 @@ public class PartialUpdateMergeFunction implements MergeFunction<KeyValue> {
             List<String> fieldNames = rowType.getFieldNames();
             List<DataType> fieldTypes = rowType.getFieldTypes();
             Map<Integer, FieldAggregator> fieldAggregators = new HashMap<>();
+            String defaultAggFunc = options.fieldsDefaultFunc();
             for (int i = 0; i < fieldNames.size(); i++) {
                 String fieldName = fieldNames.get(i);
                 DataType fieldType = fieldTypes.get(i);
@@ -395,6 +389,16 @@ public class PartialUpdateMergeFunction implements MergeFunction<KeyValue> {
                             FieldAggregator.createFieldAggregator(
                                     fieldType,
                                     strAggFunc,
+                                    ignoreRetract,
+                                    isPrimaryKey,
+                                    options,
+                                    fieldName));
+                } else if (defaultAggFunc != null) {
+                    fieldAggregators.put(
+                            i,
+                            FieldAggregator.createFieldAggregator(
+                                    fieldType,
+                                    defaultAggFunc,
                                     ignoreRetract,
                                     isPrimaryKey,
                                     options,

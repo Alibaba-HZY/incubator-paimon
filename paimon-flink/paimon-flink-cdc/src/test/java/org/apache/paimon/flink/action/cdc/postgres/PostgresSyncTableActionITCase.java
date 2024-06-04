@@ -482,6 +482,7 @@ public class PostgresSyncTableActionITCase extends PostgresActionITCaseBase {
                         new String[] {"a", "b", "c"}),
                 Collections.emptyList(),
                 Collections.singletonList("a"),
+                Collections.emptyList(),
                 new HashMap<>());
 
         PostgresSyncTableAction action =
@@ -722,8 +723,8 @@ public class PostgresSyncTableActionITCase extends PostgresActionITCaseBase {
                         .build();
         runActionWithDefaultEnv(action2);
 
-        Map<String, String> dynamicOptions = action2.fileStoreTable().options();
-        assertThat(dynamicOptions).containsAllEntriesOf(tableConfig);
+        FileStoreTable table = getFileStoreTable();
+        assertThat(table.options()).containsAllEntriesOf(tableConfig);
     }
 
     @Test

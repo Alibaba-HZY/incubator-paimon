@@ -35,8 +35,10 @@ import org.apache.paimon.format.FileFormatDiscover;
 import org.apache.paimon.fs.FileIO;
 import org.apache.paimon.index.IndexMaintainer;
 import org.apache.paimon.io.DataFileMeta;
+import org.apache.paimon.io.FileReaderFactory;
 import org.apache.paimon.io.KeyValueFileReaderFactory;
 import org.apache.paimon.io.KeyValueFileWriterFactory;
+import org.apache.paimon.io.RecordLevelExpire;
 import org.apache.paimon.lookup.LookupStrategy;
 import org.apache.paimon.lookup.hash.HashLookupStoreFactory;
 import org.apache.paimon.mergetree.Levels;
@@ -60,6 +62,7 @@ import org.apache.paimon.mergetree.compact.UniversalCompaction;
 import org.apache.paimon.options.Options;
 import org.apache.paimon.schema.KeyValueFieldsExtractor;
 import org.apache.paimon.schema.SchemaManager;
+import org.apache.paimon.schema.TableSchema;
 import org.apache.paimon.types.RowType;
 import org.apache.paimon.utils.CommitIncrement;
 import org.apache.paimon.utils.FieldsComparator;
@@ -79,8 +82,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.function.Supplier;
 
 import static org.apache.paimon.CoreOptions.ChangelogProducer.FULL_COMPACTION;
-import static org.apache.paimon.CoreOptions.MergeEngine.FIRST_ROW;
-import static org.apache.paimon.io.DataFileMeta.getMaxSequenceNumber;
+import static org.apache.paimon.CoreOptions.MergeEngine.DEDUPLICATE;
 import static org.apache.paimon.lookup.LookupStoreFactory.bfGenerator;
 
 /** {@link FileStoreWrite} for {@link KeyValueFileStore}. */
@@ -98,11 +100,12 @@ public class KeyValueFileStoreWrite extends MemoryFileStoreWrite<KeyValue> {
     private final FileIO fileIO;
     private final RowType keyType;
     private final RowType valueType;
+    @Nullable private final RecordLevelExpire recordLevelExpire;
 
     public KeyValueFileStoreWrite(
             FileIO fileIO,
             SchemaManager schemaManager,
-            long schemaId,
+            TableSchema schema,
             String commitUser,
             RowType keyType,
             RowType valueType,
@@ -135,17 +138,18 @@ public class KeyValueFileStoreWrite extends MemoryFileStoreWrite<KeyValue> {
                 KeyValueFileReaderFactory.builder(
                         fileIO,
                         schemaManager,
-                        schemaId,
+                        schema,
                         keyType,
                         valueType,
                         FileFormatDiscover.of(options),
                         pathFactory,
                         extractor,
                         options);
+        this.recordLevelExpire = RecordLevelExpire.create(options, valueType);
         this.writerFactoryBuilder =
                 KeyValueFileWriterFactory.builder(
                         fileIO,
-                        schemaId,
+                        schema.id(),
                         keyType,
                         valueType,
                         options.fileFormat(),
@@ -162,6 +166,7 @@ public class KeyValueFileStoreWrite extends MemoryFileStoreWrite<KeyValue> {
             BinaryRow partition,
             int bucket,
             List<DataFileMeta> restoreFiles,
+            long restoredMaxSeqNumber,
             @Nullable CommitIncrement restoreIncrement,
             ExecutorService compactExecutor,
             @Nullable DeletionVectorsMaintainer dvMaintainer) {
@@ -193,11 +198,12 @@ public class KeyValueFileStoreWrite extends MemoryFileStoreWrite<KeyValue> {
 
         return new MergeTreeWriter(
                 bufferSpillable(),
+                options.writeBufferSpillDiskSize(),
                 options.localSortMaxNumFileHandles(),
                 options.spillCompression(),
                 ioManager,
                 compactManager,
-                getMaxSequenceNumber(restoreFiles),
+                restoredMaxSeqNumber,
                 keyComparator,
                 mfFactory.create(),
                 writerFactory,
@@ -254,17 +260,19 @@ public class KeyValueFileStoreWrite extends MemoryFileStoreWrite<KeyValue> {
             @Nullable FieldsComparator userDefinedSeqComparator,
             Levels levels,
             @Nullable DeletionVectorsMaintainer dvMaintainer) {
-        KeyValueFileReaderFactory.Builder readerFactoryBuilder =
-                this.readerFactoryBuilder.copyWithoutProjection();
         DeletionVector.Factory dvFactory = DeletionVector.factory(dvMaintainer);
-        KeyValueFileReaderFactory readerFactory =
+        FileReaderFactory<KeyValue> readerFactory =
                 readerFactoryBuilder.build(partition, bucket, dvFactory);
+        if (recordLevelExpire != null) {
+            readerFactory = recordLevelExpire.wrap(readerFactory);
+        }
         KeyValueFileWriterFactory writerFactory =
                 writerFactoryBuilder.build(partition, bucket, options);
         MergeSorter mergeSorter = new MergeSorter(options, keyType, valueType, ioManager);
         int maxLevel = options.numLevels() - 1;
         MergeEngine mergeEngine = options.mergeEngine();
         ChangelogProducer changelogProducer = options.changelogProducer();
+        LookupStrategy lookupStrategy = options.lookupStrategy();
         if (changelogProducer.equals(FULL_COMPACTION)) {
             return new FullChangelogMergeTreeCompactRewriter(
                     maxLevel,
@@ -277,18 +285,18 @@ public class KeyValueFileStoreWrite extends MemoryFileStoreWrite<KeyValue> {
                     mergeSorter,
                     valueEqualiserSupplier.get(),
                     options.changelogRowDeduplicate());
-        } else if (options.needLookup()) {
-            LookupStrategy lookupStrategy = options.lookupStrategy();
+        } else if (lookupStrategy.needLookup) {
             LookupLevels.ValueProcessor<?> processor;
             LookupMergeTreeCompactRewriter.MergeFunctionWrapperFactory<?> wrapperFactory;
-            KeyValueFileReaderFactory lookupReaderFactory = readerFactory;
-            if (mergeEngine == FIRST_ROW) {
+            FileReaderFactory<KeyValue> lookupReaderFactory = readerFactory;
+            if (lookupStrategy.isFirstRow) {
                 if (options.deletionVectorsEnabled()) {
                     throw new UnsupportedOperationException(
-                            "Deletion vectors mode is not supported for first row merge engine now.");
+                            "First row merge engine does not need deletion vectors because there is no deletion of old data in this merge engine.");
                 }
                 lookupReaderFactory =
                         readerFactoryBuilder
+                                .copyWithoutProjection()
                                 .withValueProjection(new int[0][])
                                 .build(partition, bucket, dvFactory);
                 processor = new ContainsValueProcessor();
@@ -297,13 +305,16 @@ public class KeyValueFileStoreWrite extends MemoryFileStoreWrite<KeyValue> {
                 processor =
                         lookupStrategy.deletionVector
                                 ? new PositionedKeyValueProcessor(
-                                        valueType, lookupStrategy.produceChangelog)
+                                        valueType,
+                                        lookupStrategy.produceChangelog
+                                                || mergeEngine != DEDUPLICATE)
                                 : new KeyValueProcessor(valueType);
                 wrapperFactory =
                         new LookupMergeFunctionWrapperFactory<>(
                                 valueEqualiserSupplier.get(),
                                 options.changelogRowDeduplicate(),
-                                lookupStrategy);
+                                lookupStrategy,
+                                UserDefinedSeqComparator.create(valueType, options));
             }
             return new LookupMergeTreeCompactRewriter(
                     maxLevel,
@@ -332,7 +343,7 @@ public class KeyValueFileStoreWrite extends MemoryFileStoreWrite<KeyValue> {
     private <T> LookupLevels<T> createLookupLevels(
             Levels levels,
             LookupLevels.ValueProcessor<T> valueProcessor,
-            KeyValueFileReaderFactory readerFactory) {
+            FileReaderFactory<KeyValue> readerFactory) {
         if (ioManager == null) {
             throw new RuntimeException(
                     "Can not use lookup, there is no temp disk directory to use.");
@@ -343,9 +354,7 @@ public class KeyValueFileStoreWrite extends MemoryFileStoreWrite<KeyValue> {
                 keyComparatorSupplier.get(),
                 keyType,
                 valueProcessor,
-                file ->
-                        readerFactory.createRecordReader(
-                                file.schemaId(), file.fileName(), file.fileSize(), file.level()),
+                readerFactory::createRecordReader,
                 () -> ioManager.createChannel().getPathFile(),
                 new HashLookupStoreFactory(
                         cacheManager,

@@ -132,7 +132,7 @@ public abstract class SyncTableActionBase extends SynchronizationActionBase {
         // Check if table exists before trying to get or create it
         if (catalog.tableExists(identifier)) {
             fileStoreTable = (FileStoreTable) catalog.getTable(identifier);
-            fileStoreTable = copyOptionsWithoutBucket(fileStoreTable);
+            fileStoreTable = alterTableOptions(identifier, fileStoreTable);
             try {
                 Schema retrievedSchema = retrieveSchema();
                 computedColumns =
@@ -164,12 +164,12 @@ public abstract class SyncTableActionBase extends SynchronizationActionBase {
             extraColumns = buildExtraColumns(extraColumnArgs, retrievedSchema.fields());
             Schema paimonSchema = buildPaimonSchema(retrievedSchema);
             catalog.createTable(identifier, paimonSchema, false);
-            fileStoreTable = (FileStoreTable) catalog.getTable(identifier).copy(tableConfig);
+            fileStoreTable = (FileStoreTable) catalog.getTable(identifier);
         }
     }
 
     @Override
-    protected FlatMapFunction<String, RichCdcMultiplexRecord> recordParse() {
+    protected FlatMapFunction<CdcSourceRecord, RichCdcMultiplexRecord> recordParse() {
         return syncJobHandler.provideRecordParser(
                 caseSensitive, computedColumns, extraColumns, typeMapping, metadataConverters);
     }
