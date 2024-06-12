@@ -74,6 +74,7 @@ import static org.apache.paimon.utils.Preconditions.checkState;
 /** Schema Manager to manage schema versions. */
 @ThreadSafe
 public class SchemaManager implements Serializable {
+    private static final long serialVersionUID = 1L;
 
     private static final String SCHEMA_PREFIX = "schema-";
 

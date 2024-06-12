@@ -283,12 +283,13 @@ public class MySqlSyncDatabaseActionITCase extends MySqlActionITCaseBase {
     public void testExtraColumnTables() throws Exception {
         // create an incompatible table
         createFileStoreTable(
-                "incompatible",
+                //                "incompatible",
                 RowType.of(
                         new DataType[] {DataTypes.STRING(), DataTypes.STRING()},
                         new String[] {"k", "v1"}),
                 Collections.emptyList(),
                 Collections.singletonList("k"),
+                Collections.emptyList(),
                 Collections.emptyMap());
 
         // try synchronization
