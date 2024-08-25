@@ -146,11 +146,15 @@ public class MySqlSyncDatabaseAction extends SyncDatabaseActionBase {
             FileStoreTable table;
             extraColumns =
                     buildExtraColumns(extraColumnArgs, tableInfo.schema().fields(), caseSensitive);
+
+            List<String> primaryKeys = tableInfo.schema().primaryKeys();
+            primaryKeys.addAll(partitionKeys);
+
             Schema fromMySql =
                     CdcActionCommonUtils.buildPaimonSchema(
                             identifier.getFullName(),
-                            Collections.emptyList(),
-                            Collections.emptyList(),
+                            partitionKeys,
+                            primaryKeys,
                             Collections.emptyList(),
                             extraColumns,
                             tableConfig,

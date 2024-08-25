@@ -38,7 +38,7 @@ public interface NoFiledExpression extends Serializable {
                     "SYSTEM_OP_TS",
                     "SYSTEM_PHYSICAL_TABLE",
                     "SYSTEM_PHYSICAL_DB",
-                    "SYSTEM_OP_TRACEID");
+                    "SYSTEM_OP_ID");
 
     /** Return {@link DataType} of computed value. */
     DataType outputType();
@@ -49,12 +49,12 @@ public interface NoFiledExpression extends Serializable {
     String defaultValue();
 
     static NoFiledExpression create(String exprName, String defaultValue, String... literals) {
-        switch (exprName.toLowerCase()) {
+        switch (exprName.toUpperCase()) {
             case "PROV":
                 return prov(defaultValue);
             case "SYSTEM_OP_TS":
                 return systemOpTs(defaultValue);
-            case "SYSTEM_OP_TRACEID":
+            case "SYSTEM_OP_ID":
                 return systemOPTraceidComputer(defaultValue);
             case "SYSTEM_PHYSICAL_TABLE":
                 return systemOPTableComputer(defaultValue);
