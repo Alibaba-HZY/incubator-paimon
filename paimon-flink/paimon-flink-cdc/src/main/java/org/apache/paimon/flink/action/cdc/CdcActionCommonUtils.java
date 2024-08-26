@@ -274,10 +274,12 @@ public class CdcActionCommonUtils {
                     computedColumns.stream()
                             .map(ComputedColumn::columnName)
                             .collect(Collectors.toSet()));
+            sourceColumns.addAll(
+                    extraColumns.stream().map(ExtraColumn::columnName).collect(Collectors.toSet()));
             for (String key : specifiedPrimaryKeys) {
                 checkArgument(
                         sourceColumns.contains(key),
-                        "Specified primary key '%s' does not exist in source tables or computed columns %s.",
+                        "Specified primary key '%s' does not exist in source tables or computed columns or extra columns %s.",
                         key,
                         sourceColumns);
             }

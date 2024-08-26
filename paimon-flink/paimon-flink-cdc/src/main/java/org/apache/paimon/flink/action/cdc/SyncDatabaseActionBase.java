@@ -34,6 +34,7 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import javax.annotation.Nullable;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -53,6 +54,7 @@ public abstract class SyncDatabaseActionBase extends SynchronizationActionBase {
     protected List<FileStoreTable> tables = new ArrayList<>();
     protected List<String> extraColumnArgs = new ArrayList<>();
     protected List<ExtraColumn> extraColumns = new ArrayList<>();
+    protected List<String> partitionKeys = new ArrayList<>();
 
     public SyncDatabaseActionBase(
             String warehouse,
@@ -106,6 +108,15 @@ public abstract class SyncDatabaseActionBase extends SynchronizationActionBase {
 
     public SyncDatabaseActionBase withExtraColumnArgs(List<String> extraColumnArgs) {
         this.extraColumnArgs = extraColumnArgs;
+        return this;
+    }
+
+    public SyncDatabaseActionBase withPartitionKeys(String... partitionKeys) {
+        return withPartitionKeys(Arrays.asList(partitionKeys));
+    }
+
+    public SyncDatabaseActionBase withPartitionKeys(List<String> partitionKeys) {
+        this.partitionKeys = partitionKeys;
         return this;
     }
 
