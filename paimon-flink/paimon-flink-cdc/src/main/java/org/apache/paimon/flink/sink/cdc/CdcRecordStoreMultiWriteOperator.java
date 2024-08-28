@@ -72,6 +72,7 @@ public class CdcRecordStoreMultiWriteOperator
     private Map<Identifier, StoreSinkWrite> writes;
     private String commitUser;
     private ExecutorService compactExecutor;
+    private Map<String, String> dynamicOptions;
 
     public CdcRecordStoreMultiWriteOperator(
             Catalog.Loader catalogLoader,
@@ -82,6 +83,7 @@ public class CdcRecordStoreMultiWriteOperator
         this.catalogLoader = catalogLoader;
         this.storeSinkWriteProvider = storeSinkWriteProvider;
         this.initialCommitUser = initialCommitUser;
+        dynamicOptions = options.toMap();
     }
 
     @Override
@@ -150,6 +152,7 @@ public class CdcRecordStoreMultiWriteOperator
             FileStoreTable latestTable = table;
             while (true) {
                 latestTable = latestTable.copyWithLatestSchema();
+                latestTable.copy(dynamicOptions);
                 tables.put(tableId, latestTable);
                 optionalConverted = toGenericRow(record.record(), latestTable.schema().fields());
                 if (optionalConverted.isPresent()) {
@@ -178,6 +181,7 @@ public class CdcRecordStoreMultiWriteOperator
             while (true) {
                 try {
                     table = (FileStoreTable) catalog.getTable(tableId);
+                    table.copy(dynamicOptions);
                     tables.put(tableId, table);
                     break;
                 } catch (Catalog.TableNotExistException e) {

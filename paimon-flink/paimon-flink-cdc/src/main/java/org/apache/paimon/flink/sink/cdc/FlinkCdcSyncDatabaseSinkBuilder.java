@@ -37,6 +37,7 @@ import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import javax.annotation.Nullable;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -61,6 +62,7 @@ public class FlinkCdcSyncDatabaseSinkBuilder<T> {
     private DataStream<T> input = null;
     private EventParser.Factory<T> parserFactory = null;
     private List<FileStoreTable> tables = new ArrayList<>();
+    private Map<String, String> dynamicTables = new HashMap<>();
 
     @Nullable private Integer parallelism;
     private double committerCpu;
@@ -95,6 +97,12 @@ public class FlinkCdcSyncDatabaseSinkBuilder<T> {
 
     public FlinkCdcSyncDatabaseSinkBuilder<T> withTableOptions(Map<String, String> options) {
         return withTableOptions(Options.fromMap(options));
+    }
+
+    public FlinkCdcSyncDatabaseSinkBuilder<T> withDynamicTableOptions(
+            Map<String, String> dynamicTables) {
+        this.dynamicTables = dynamicTables;
+        return this;
     }
 
     public FlinkCdcSyncDatabaseSinkBuilder<T> withTableOptions(Options options) {
@@ -163,7 +171,11 @@ public class FlinkCdcSyncDatabaseSinkBuilder<T> {
 
         FlinkCdcMultiTableSink sink =
                 new FlinkCdcMultiTableSink(
-                        catalogLoader, committerCpu, committerMemory, commitChaining);
+                        catalogLoader,
+                        committerCpu,
+                        committerMemory,
+                        commitChaining,
+                        dynamicTables);
         sink.sinkFrom(partitioned);
     }
 

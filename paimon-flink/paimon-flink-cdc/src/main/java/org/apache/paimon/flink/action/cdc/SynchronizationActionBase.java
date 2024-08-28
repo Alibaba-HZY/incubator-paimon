@@ -65,6 +65,7 @@ public abstract class SynchronizationActionBase extends ActionBase {
     protected final boolean caseSensitive;
 
     protected Map<String, String> tableConfig = new HashMap<>();
+    protected Map<String, String> dynamicTableConfig = new HashMap<>();
     protected TypeMapping typeMapping = TypeMapping.defaultMapping();
     protected CdcMetadataConverter[] metadataConverters = new CdcMetadataConverter[] {};
 
@@ -85,6 +86,12 @@ public abstract class SynchronizationActionBase extends ActionBase {
 
     public SynchronizationActionBase withTableConfig(Map<String, String> tableConfig) {
         this.tableConfig = tableConfig;
+        return this;
+    }
+
+    public SynchronizationActionBase withDynamicTableConfig(
+            Map<String, String> dynamicTableConfig) {
+        this.dynamicTableConfig = dynamicTableConfig;
         return this;
     }
 

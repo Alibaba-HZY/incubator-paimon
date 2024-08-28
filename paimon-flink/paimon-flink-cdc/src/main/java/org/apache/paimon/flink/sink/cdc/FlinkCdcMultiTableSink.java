@@ -46,6 +46,8 @@ import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import javax.annotation.Nullable;
 
 import java.io.Serializable;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.apache.paimon.flink.sink.FlinkSink.assertStreamingConfiguration;
@@ -65,6 +67,7 @@ public class FlinkCdcMultiTableSink implements Serializable {
     private final double commitCpuCores;
     @Nullable private final MemorySize commitHeapMemory;
     private final boolean commitChaining;
+    private Map<String, String> dynamicTables = new HashMap<>();
 
     public FlinkCdcMultiTableSink(
             Catalog.Loader catalogLoader,
@@ -75,6 +78,19 @@ public class FlinkCdcMultiTableSink implements Serializable {
         this.commitCpuCores = commitCpuCores;
         this.commitHeapMemory = commitHeapMemory;
         this.commitChaining = commitChaining;
+    }
+
+    public FlinkCdcMultiTableSink(
+            Catalog.Loader catalogLoader,
+            double commitCpuCores,
+            @Nullable MemorySize commitHeapMemory,
+            boolean commitChaining,
+            Map dynamicTables) {
+        this.catalogLoader = catalogLoader;
+        this.commitCpuCores = commitCpuCores;
+        this.commitHeapMemory = commitHeapMemory;
+        this.commitChaining = commitChaining;
+        this.dynamicTables = dynamicTables;
     }
 
     private StoreSinkWrite.WithWriteBufferProvider createWriteProvider() {
@@ -144,7 +160,7 @@ public class FlinkCdcMultiTableSink implements Serializable {
     protected OneInputStreamOperator<CdcMultiplexRecord, MultiTableCommittable> createWriteOperator(
             StoreSinkWrite.WithWriteBufferProvider writeProvider, String commitUser) {
         return new CdcRecordStoreMultiWriteOperator(
-                catalogLoader, writeProvider, commitUser, new Options());
+                catalogLoader, writeProvider, commitUser, new Options(dynamicTables));
     }
 
     // Table committers are dynamically created at runtime
