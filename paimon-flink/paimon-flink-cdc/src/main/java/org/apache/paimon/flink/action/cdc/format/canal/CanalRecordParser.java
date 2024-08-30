@@ -120,7 +120,7 @@ public class CanalRecordParser extends RecordParser {
                     processRecord(data, RowKind.DELETE, records);
                     break;
                 default:
-                    throw new UnsupportedOperationException("Unknown record operation: " + type);
+                    unsupportedOperationHandler(type);
             }
         }
         return records;

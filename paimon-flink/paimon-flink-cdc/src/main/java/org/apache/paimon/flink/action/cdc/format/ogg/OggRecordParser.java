@@ -79,7 +79,7 @@ public class OggRecordParser extends RecordParser {
                 processRecord(getBefore(operation), RowKind.DELETE, records);
                 break;
             default:
-                throw new UnsupportedOperationException("Unknown record operation: " + operation);
+                unsupportedOperationHandler(operation);
         }
         return records;
     }

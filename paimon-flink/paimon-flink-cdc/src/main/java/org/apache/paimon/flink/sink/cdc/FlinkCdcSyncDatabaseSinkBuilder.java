@@ -33,10 +33,13 @@ import org.apache.paimon.utils.Preconditions;
 
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -57,10 +60,13 @@ import static org.apache.paimon.flink.sink.FlinkStreamPartitioner.partition;
  * @param <T> CDC change event type
  */
 public class FlinkCdcSyncDatabaseSinkBuilder<T> {
+    private static final Logger LOG =
+            LoggerFactory.getLogger(FlinkCdcSyncDatabaseSinkBuilder.class);
 
     private DataStream<T> input = null;
     private EventParser.Factory<T> parserFactory = null;
     private List<FileStoreTable> tables = new ArrayList<>();
+    private Map<String, String> dynamicTableConfig = new HashMap<>();
 
     @Nullable private Integer parallelism;
     private double committerCpu;
@@ -95,6 +101,12 @@ public class FlinkCdcSyncDatabaseSinkBuilder<T> {
 
     public FlinkCdcSyncDatabaseSinkBuilder<T> withTableOptions(Map<String, String> options) {
         return withTableOptions(Options.fromMap(options));
+    }
+
+    public FlinkCdcSyncDatabaseSinkBuilder<T> withDynamicTableConfig(
+            Map<String, String> dynamicTableConfig) {
+        this.dynamicTableConfig = dynamicTableConfig;
+        return this;
     }
 
     public FlinkCdcSyncDatabaseSinkBuilder<T> withTableOptions(Options options) {
@@ -163,7 +175,11 @@ public class FlinkCdcSyncDatabaseSinkBuilder<T> {
 
         FlinkCdcMultiTableSink sink =
                 new FlinkCdcMultiTableSink(
-                        catalogLoader, committerCpu, committerMemory, commitChaining);
+                        catalogLoader,
+                        committerCpu,
+                        committerMemory,
+                        commitChaining,
+                        dynamicTableConfig);
         sink.sinkFrom(partitioned);
     }
 
@@ -186,6 +202,10 @@ public class FlinkCdcSyncDatabaseSinkBuilder<T> {
                         .setParallelism(input.getParallelism());
 
         for (FileStoreTable table : tables) {
+            table = table.copy(dynamicTableConfig);
+            if (LOG.isDebugEnabled()) {
+                LOG.debug("Table Options with dynamic_table_conf copied: {}", table.options());
+            }
             DataStream<Void> schemaChangeProcessFunction =
                     SingleOutputStreamOperatorUtils.getSideOutput(
                                     parsed,

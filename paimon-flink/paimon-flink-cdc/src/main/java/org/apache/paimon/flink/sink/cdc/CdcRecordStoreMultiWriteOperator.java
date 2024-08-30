@@ -38,6 +38,8 @@ import org.apache.paimon.utils.ExecutorThreadFactory;
 import org.apache.flink.runtime.state.StateInitializationContext;
 import org.apache.flink.runtime.state.StateSnapshotContext;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -58,7 +60,8 @@ import static org.apache.paimon.flink.sink.cdc.CdcRecordUtils.toGenericRow;
  */
 public class CdcRecordStoreMultiWriteOperator
         extends PrepareCommitOperator<CdcMultiplexRecord, MultiTableCommittable> {
-
+    private static final Logger LOG =
+            LoggerFactory.getLogger(CdcRecordStoreMultiWriteOperator.class);
     private static final long serialVersionUID = 1L;
 
     private final StoreSinkWrite.WithWriteBufferProvider storeSinkWriteProvider;
@@ -72,6 +75,7 @@ public class CdcRecordStoreMultiWriteOperator
     private Map<Identifier, StoreSinkWrite> writes;
     private String commitUser;
     private ExecutorService compactExecutor;
+    private Map<String, String> dynamicTableConf;
 
     public CdcRecordStoreMultiWriteOperator(
             Catalog.Loader catalogLoader,
@@ -82,6 +86,7 @@ public class CdcRecordStoreMultiWriteOperator
         this.catalogLoader = catalogLoader;
         this.storeSinkWriteProvider = storeSinkWriteProvider;
         this.initialCommitUser = initialCommitUser;
+        this.dynamicTableConf = options.toMap();
     }
 
     @Override
@@ -150,6 +155,12 @@ public class CdcRecordStoreMultiWriteOperator
             FileStoreTable latestTable = table;
             while (true) {
                 latestTable = latestTable.copyWithLatestSchema();
+                latestTable = latestTable.copy(dynamicTableConf);
+                if (LOG.isDebugEnabled()) {
+                    LOG.debug(
+                            "LatestTable Options with dynamic_table_conf copied: {}",
+                            latestTable.options());
+                }
                 tables.put(tableId, latestTable);
                 optionalConverted = toGenericRow(record.record(), latestTable.schema().fields());
                 if (optionalConverted.isPresent()) {
@@ -178,6 +189,12 @@ public class CdcRecordStoreMultiWriteOperator
             while (true) {
                 try {
                     table = (FileStoreTable) catalog.getTable(tableId);
+                    table = table.copy(dynamicTableConf);
+                    if (LOG.isDebugEnabled()) {
+                        LOG.debug(
+                                "Table Options with dynamic_table_conf copied: {}",
+                                table.options());
+                    }
                     tables.put(tableId, table);
                     break;
                 } catch (Catalog.TableNotExistException e) {
