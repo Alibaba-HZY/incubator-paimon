@@ -113,6 +113,11 @@ public abstract class SynchronizationActionBase extends ActionBase {
         return tableConfig;
     }
 
+    @VisibleForTesting
+    public Map<String, String> dynamicTableConfig() {
+        return dynamicTableConfig;
+    }
+
     @Override
     public void build() throws Exception {
         syncJobHandler.checkRequiredOption();

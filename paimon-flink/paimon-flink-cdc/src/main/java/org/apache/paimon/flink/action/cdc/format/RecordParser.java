@@ -119,6 +119,13 @@ public abstract class RecordParser
 
     protected abstract List<RichCdcMultiplexRecord> extractRecords();
 
+    protected void unsupportedOperationHandler(String type) {
+        if (1 == 1) {
+        } else {
+            throw new UnsupportedOperationException("Unknown record operation: " + type);
+        }
+    }
+
     protected abstract String primaryField();
 
     protected abstract String dataField();

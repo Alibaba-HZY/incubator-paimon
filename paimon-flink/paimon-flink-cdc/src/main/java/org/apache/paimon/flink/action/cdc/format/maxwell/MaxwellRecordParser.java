@@ -73,7 +73,7 @@ public class MaxwellRecordParser extends RecordParser {
                 processRecord(data, RowKind.DELETE, records);
                 break;
             default:
-                throw new UnsupportedOperationException("Unknown record operation: " + operation);
+                unsupportedOperationHandler(operation);
         }
         return records;
     }
