@@ -170,7 +170,8 @@ public class FlinkCdcMultiTableSink implements Serializable {
         // commit new files list even if they're empty.
         // Otherwise we can't tell if the commit is successful after
         // a restart.
-        return context -> new StoreMultiCommitter(catalogLoader, context);
+        return context ->
+                new StoreMultiCommitter(catalogLoader, context, false, dynamicTableConfig);
     }
 
     protected CommittableStateManager<WrappedManifestCommittable> createCommittableStateManager() {
