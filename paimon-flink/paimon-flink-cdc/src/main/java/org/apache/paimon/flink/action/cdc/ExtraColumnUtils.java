@@ -76,9 +76,28 @@ public class ExtraColumnUtils {
             computedColumns.add(
                     new ExtraColumn(
                             columnName,
-                            NoFiledExpression.create(exprName, defaultValue, literals)));
+                            NoFiledExpression.create(exprName, defaultValue, literals),
+                            createExtraDescription(columnName)));
         }
 
         return computedColumns;
+    }
+
+    public static String createExtraDescription(String columnName) {
+        switch (columnName.toUpperCase()) {
+            case "PROV":
+                return "省分";
+            case "SYSTEM_OP_TS":
+                return "CDC消息时间";
+            case "SYSTEM_OP_ID":
+                return "CDC消息ID";
+            case "SYSTEM_PHYSICAL_DB":
+                return "物理库,分库分表下对应物理实例,非分库分表可不添加,以逻辑库名称标识";
+            case "SYSTEM_PHYSICAL_TABLE":
+                return "物理表,分库分表下对应物理实例,非分库分表可不添加,以逻辑表名称标识";
+            default:
+                break;
+        }
+        return "";
     }
 }

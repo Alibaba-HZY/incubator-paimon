@@ -253,7 +253,7 @@ public class CdcActionCommonUtils {
                             existedFields,
                             caseSensitive,
                             columnDuplicateErrMsg);
-            builder.column(computedColumnName, extraColumn.columnType());
+            builder.column(computedColumnName, extraColumn.columnType(), extraColumn.description());
         }
 
         for (CdcMetadataConverter metadataConverter : metadataConverters) {
@@ -263,7 +263,10 @@ public class CdcActionCommonUtils {
                             existedFields,
                             caseSensitive,
                             columnDuplicateErrMsg);
-            builder.column(metadataColumnName, metadataConverter.dataType());
+            builder.column(
+                    metadataColumnName,
+                    metadataConverter.dataType(),
+                    metadataConverter.description());
         }
 
         // primary keys

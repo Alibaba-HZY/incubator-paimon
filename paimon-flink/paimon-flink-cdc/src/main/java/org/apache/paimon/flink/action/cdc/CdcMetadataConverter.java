@@ -44,6 +44,10 @@ public interface CdcMetadataConverter extends Serializable {
 
     String columnName();
 
+    default String description() {
+        return "";
+    }
+
     /** Name of the database that contain the row. */
     class DatabaseNameConverter implements CdcMetadataConverter {
         private static final long serialVersionUID = 1L;
@@ -61,6 +65,11 @@ public interface CdcMetadataConverter extends Serializable {
         @Override
         public String columnName() {
             return "SYSTEM_LOGICAL_DB";
+        }
+
+        @Override
+        public String description() {
+            return "逻辑库,分库分表下对应逻辑库名,非分库分表下可直接标识库实例";
         }
     }
 
@@ -81,6 +90,11 @@ public interface CdcMetadataConverter extends Serializable {
         @Override
         public String columnName() {
             return "SYSTEM_LOGICAL_TABLE";
+        }
+
+        @Override
+        public String description() {
+            return "逻辑表,分库分表下对应逻辑表名,非分库分表下可直接标识表实例";
         }
     }
 
