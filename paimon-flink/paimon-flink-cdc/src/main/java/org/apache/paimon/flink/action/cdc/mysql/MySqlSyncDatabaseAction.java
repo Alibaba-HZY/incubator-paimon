@@ -27,8 +27,10 @@ import org.apache.paimon.flink.action.cdc.CdcSourceRecord;
 import org.apache.paimon.flink.action.cdc.SyncDatabaseActionBase;
 import org.apache.paimon.flink.action.cdc.SyncJobHandler;
 import org.apache.paimon.flink.action.cdc.TableNameConverter;
+import org.apache.paimon.flink.action.cdc.WriterConf;
 import org.apache.paimon.flink.action.cdc.schema.JdbcSchemasInfo;
 import org.apache.paimon.flink.action.cdc.schema.JdbcTableInfo;
+import org.apache.paimon.options.Options;
 import org.apache.paimon.schema.Schema;
 import org.apache.paimon.schema.TableSchema;
 import org.apache.paimon.table.FileStoreTable;
@@ -97,8 +99,6 @@ public class MySqlSyncDatabaseAction extends SyncDatabaseActionBase {
 
     private boolean ignoreIncompatible = false;
 
-    private boolean autoSyncSchema = false;
-
     // for test purpose
     private final List<Identifier> monitoredTables = new ArrayList<>();
     private final List<Identifier> excludedTables = new ArrayList<>();
@@ -114,11 +114,6 @@ public class MySqlSyncDatabaseAction extends SyncDatabaseActionBase {
 
     public MySqlSyncDatabaseAction ignoreIncompatible(boolean ignoreIncompatible) {
         this.ignoreIncompatible = ignoreIncompatible;
-        return this;
-    }
-
-    public MySqlSyncDatabaseAction autoSyncSchema(boolean autoSyncSchema) {
-        this.autoSyncSchema = autoSyncSchema;
         return this;
     }
 
@@ -173,10 +168,14 @@ public class MySqlSyncDatabaseAction extends SyncDatabaseActionBase {
                 table = (FileStoreTable) catalog.getTable(identifier);
                 Supplier<String> errMsg =
                         incompatibleMessage(table.schema(), tableInfo, identifier);
+                boolean alterSchemaWithAddColumn =
+                        new WriterConf(new Options(writerConf)).alterSchemaWithAddColumn();
                 if (!ignoreIncompatible
                         && !schemaCompatible(table.schema(), fromMySql.fields())
-                        && autoSyncSchema) {
-                    LOG.info(errMsg.get() + "This table will sync schema automatically.");
+                        && alterSchemaWithAddColumn) {
+                    LOG.info(
+                            errMsg.get()
+                                    + "This table will alter schema with add column automatically.");
                     table = alterTable(identifier, table, fromMySql);
                 }
                 if (shouldMonitorTable(table.schema(), fromMySql, errMsg)) {
