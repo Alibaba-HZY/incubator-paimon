@@ -97,6 +97,8 @@ public class MySqlSyncDatabaseAction extends SyncDatabaseActionBase {
 
     private boolean ignoreIncompatible = false;
 
+    private boolean autoSyncSchema = false;
+
     // for test purpose
     private final List<Identifier> monitoredTables = new ArrayList<>();
     private final List<Identifier> excludedTables = new ArrayList<>();
@@ -112,6 +114,11 @@ public class MySqlSyncDatabaseAction extends SyncDatabaseActionBase {
 
     public MySqlSyncDatabaseAction ignoreIncompatible(boolean ignoreIncompatible) {
         this.ignoreIncompatible = ignoreIncompatible;
+        return this;
+    }
+
+    public MySqlSyncDatabaseAction autoSyncSchema(boolean autoSyncSchema) {
+        this.autoSyncSchema = autoSyncSchema;
         return this;
     }
 
@@ -166,6 +173,12 @@ public class MySqlSyncDatabaseAction extends SyncDatabaseActionBase {
                 table = (FileStoreTable) catalog.getTable(identifier);
                 Supplier<String> errMsg =
                         incompatibleMessage(table.schema(), tableInfo, identifier);
+                if (!ignoreIncompatible
+                        && !schemaCompatible(table.schema(), fromMySql.fields())
+                        && autoSyncSchema) {
+                    LOG.info(errMsg.get() + "This table will sync schema automatically.");
+                    table = alterTable(identifier, table, fromMySql);
+                }
                 if (shouldMonitorTable(table.schema(), fromMySql, errMsg)) {
                     table = alterTableOptions(identifier, table);
                     tables.add(table);

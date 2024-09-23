@@ -36,6 +36,7 @@ public class MySqlSyncDatabaseActionFactory
     public static final String IDENTIFIER = "mysql_sync_database";
 
     private static final String IGNORE_INCOMPATIBLE = "ignore_incompatible";
+    private static final String AUTO_SYNC_SCHEMA = "auto_sync_schema";
     private static final String MERGE_SHARDS = "merge_shards";
     private static final String MODE = "mode";
 
@@ -61,6 +62,7 @@ public class MySqlSyncDatabaseActionFactory
                 .mergeShards(
                         !params.has(MERGE_SHARDS) || Boolean.parseBoolean(params.get(MERGE_SHARDS)))
                 .withMode(MultiTablesSinkMode.fromString(params.get(MODE)));
+        action.autoSyncSchema(Boolean.parseBoolean(params.get(AUTO_SYNC_SCHEMA)));
         if (params.has(METADATA_COLUMN)) {
             action.withMetadataColumns(Arrays.asList(params.get(METADATA_COLUMN).split(",")));
         }
