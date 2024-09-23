@@ -45,7 +45,6 @@ public abstract class SynchronizationActionFactoryBase<T extends Synchronization
         T action = createAction();
 
         action.withTableConfig(optionalConfigMap(params, TABLE_CONF));
-        action.withDynamicTableConfig(optionalConfigMap(params, DYNAMIC_TABLE_CONF));
         action.withWriterConfig(optionalConfigMap(params, WRITER_CONF));
         withParams(params, action);
 

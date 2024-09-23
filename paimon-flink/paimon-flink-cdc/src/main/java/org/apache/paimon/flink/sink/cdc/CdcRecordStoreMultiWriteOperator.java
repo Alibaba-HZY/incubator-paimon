@@ -75,7 +75,7 @@ public class CdcRecordStoreMultiWriteOperator
     private Map<Identifier, StoreSinkWrite> writes;
     private String commitUser;
     private ExecutorService compactExecutor;
-    private Map<String, String> dynamicTableConf;
+    private Map<String, String> dynamicOptions;
 
     public CdcRecordStoreMultiWriteOperator(
             Catalog.Loader catalogLoader,
@@ -86,7 +86,7 @@ public class CdcRecordStoreMultiWriteOperator
         this.catalogLoader = catalogLoader;
         this.storeSinkWriteProvider = storeSinkWriteProvider;
         this.initialCommitUser = initialCommitUser;
-        this.dynamicTableConf = options.toMap();
+        this.dynamicOptions = options.toMap();
     }
 
     @Override
@@ -155,7 +155,7 @@ public class CdcRecordStoreMultiWriteOperator
             FileStoreTable latestTable = table;
             while (true) {
                 latestTable = latestTable.copyWithLatestSchema();
-                latestTable = latestTable.copy(dynamicTableConf);
+                latestTable = latestTable.copy(dynamicOptions);
                 if (LOG.isDebugEnabled()) {
                     LOG.debug(
                             "LatestTable Options with dynamic_table_conf copied: {}",
@@ -189,7 +189,7 @@ public class CdcRecordStoreMultiWriteOperator
             while (true) {
                 try {
                     table = (FileStoreTable) catalog.getTable(tableId);
-                    table = table.copy(dynamicTableConf);
+                    table = table.copy(dynamicOptions);
                     if (LOG.isDebugEnabled()) {
                         LOG.debug(
                                 "Table Options with dynamic_table_conf copied: {}",

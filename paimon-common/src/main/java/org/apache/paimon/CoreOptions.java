@@ -2241,6 +2241,22 @@ public class CoreOptions implements Serializable {
         return list;
     }
 
+    public static Set<String> getMutableOptionKeys() {
+        final Field[] fields = CoreOptions.class.getFields();
+        final Set<String> mutableKeys = new HashSet<>(fields.length);
+        for (Field field : fields) {
+            if (ConfigOption.class.isAssignableFrom(field.getType())
+                    && field.getAnnotation(Immutable.class) == null) {
+                try {
+                    mutableKeys.add(((ConfigOption<?>) field.get(CoreOptions.class)).key());
+                } catch (IllegalAccessException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        }
+        return mutableKeys;
+    }
+
     public static Set<String> getImmutableOptionKeys() {
         final Field[] fields = CoreOptions.class.getFields();
         final Set<String> immutableKeys = new HashSet<>(fields.length);
