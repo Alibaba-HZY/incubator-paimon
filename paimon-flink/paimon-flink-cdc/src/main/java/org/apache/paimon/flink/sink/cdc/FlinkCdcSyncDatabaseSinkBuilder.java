@@ -67,6 +67,7 @@ public class FlinkCdcSyncDatabaseSinkBuilder<T> {
     private EventParser.Factory<T> parserFactory = null;
     private List<FileStoreTable> tables = new ArrayList<>();
     private Map<String, String> dynamicTableConfig = new HashMap<>();
+    private Map<String, String> writerConfig = new HashMap<>();
 
     @Nullable private Integer parallelism;
     private double committerCpu;
@@ -106,6 +107,12 @@ public class FlinkCdcSyncDatabaseSinkBuilder<T> {
     public FlinkCdcSyncDatabaseSinkBuilder<T> withDynamicTableConfig(
             Map<String, String> dynamicTableConfig) {
         this.dynamicTableConfig = dynamicTableConfig;
+        return this;
+    }
+
+    public FlinkCdcSyncDatabaseSinkBuilder<T> withWriterConfig(
+            Map<String, String> writerConfig) {
+        this.writerConfig = writerConfig;
         return this;
     }
 

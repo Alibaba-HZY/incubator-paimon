@@ -165,6 +165,7 @@ public abstract class SyncDatabaseActionBase extends SynchronizationActionBase {
                 .withMode(mode)
                 .withTableOptions(tableConfig)
                 .withDynamicTableConfig(dynamicTableConfig)
+                .withWriterConfig(writerConf)
                 .build();
     }
 }
