@@ -25,6 +25,7 @@ import java.io.Serializable;
 
 import static org.apache.paimon.options.ConfigOptions.key;
 
+/** WriterConf for paimon. */
 public class WriterConf implements Serializable {
 
     private static final long serialVersionUID = 1L;
