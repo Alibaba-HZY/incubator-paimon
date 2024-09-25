@@ -71,7 +71,7 @@ public abstract class SynchronizationActionBase extends ActionBase {
     protected final boolean caseSensitive;
 
     protected Map<String, String> tableConfig = new HashMap<>();
-    protected Map<String, String> writerConf = new HashMap<>();
+    protected WriterConf writerConf = new WriterConf(new Options());
     protected TypeMapping typeMapping = TypeMapping.defaultMapping();
     protected CdcMetadataConverter[] metadataConverters = new CdcMetadataConverter[] {};
 
@@ -96,7 +96,7 @@ public abstract class SynchronizationActionBase extends ActionBase {
     }
 
     public SynchronizationActionBase withWriterConfig(Map<String, String> writerConf) {
-        this.writerConf = writerConf;
+        this.writerConf = new WriterConf(new Options(writerConf));
         return this;
     }
 
@@ -119,7 +119,7 @@ public abstract class SynchronizationActionBase extends ActionBase {
     }
 
     @VisibleForTesting
-    public Map<String, String> writerConf() {
+    public WriterConf writerConf() {
         return writerConf;
     }
 

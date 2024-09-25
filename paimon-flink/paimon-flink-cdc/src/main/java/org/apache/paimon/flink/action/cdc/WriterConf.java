@@ -18,10 +18,15 @@
 
 package org.apache.paimon.flink.action.cdc;
 
+import org.apache.paimon.CoreOptions;
 import org.apache.paimon.options.ConfigOption;
 import org.apache.paimon.options.Options;
 
 import java.io.Serializable;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.apache.paimon.options.ConfigOptions.key;
 
@@ -37,13 +42,41 @@ public class WriterConf implements Serializable {
                     .withDescription(
                             "If set to true, Sync table will alter schema with add column automatically.");
 
-    private final Options options;
+    private final Options writerConf;
+    private final Map<String, String> tableConf;
 
     public WriterConf(Options options) {
-        this.options = options;
+        this.writerConf = options;
+        this.tableConf = getTableConf();
+    }
+
+    public Map<String, String> tableConf() {
+        return tableConf;
+    }
+
+    protected Map<String, String> getTableConf() {
+        Map<String, String> tableConf = new HashMap<>();
+        writerConf
+                .toMap()
+                .forEach(
+                        (k, v) -> {
+                            if (v == null) {
+                                tableConf.remove(k);
+                            } else if (getCoreOptionKeys().contains(k)
+                                    && (!CoreOptions.getImmutableOptionKeys().contains(k))) {
+                                tableConf.put(k, v);
+                            }
+                        });
+        return tableConf;
+    }
+
+    protected static Set<String> getCoreOptionKeys() {
+        return CoreOptions.getOptions().stream()
+                .map(item -> item.key())
+                .collect(Collectors.toSet());
     }
 
     public boolean alterSchemaWithAddColumn() {
-        return options.get(ALTER_SCHEMA_WITH_ADD_COLUMN);
+        return writerConf.get(ALTER_SCHEMA_WITH_ADD_COLUMN);
     }
 }

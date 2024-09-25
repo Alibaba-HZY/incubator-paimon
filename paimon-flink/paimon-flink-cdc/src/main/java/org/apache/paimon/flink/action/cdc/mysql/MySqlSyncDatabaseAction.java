@@ -27,10 +27,8 @@ import org.apache.paimon.flink.action.cdc.CdcSourceRecord;
 import org.apache.paimon.flink.action.cdc.SyncDatabaseActionBase;
 import org.apache.paimon.flink.action.cdc.SyncJobHandler;
 import org.apache.paimon.flink.action.cdc.TableNameConverter;
-import org.apache.paimon.flink.action.cdc.WriterConf;
 import org.apache.paimon.flink.action.cdc.schema.JdbcSchemasInfo;
 import org.apache.paimon.flink.action.cdc.schema.JdbcTableInfo;
-import org.apache.paimon.options.Options;
 import org.apache.paimon.schema.Schema;
 import org.apache.paimon.schema.TableSchema;
 import org.apache.paimon.table.FileStoreTable;
@@ -168,10 +166,9 @@ public class MySqlSyncDatabaseAction extends SyncDatabaseActionBase {
                 table = (FileStoreTable) catalog.getTable(identifier);
                 Supplier<String> errMsg =
                         incompatibleMessage(table.schema(), tableInfo, identifier);
-                boolean alterSchemaWithAddColumn =
-                        new WriterConf(new Options(writerConf)).alterSchemaWithAddColumn();
-                if (!ignoreIncompatible
-                        && !schemaCompatible(table.schema(), fromMySql.fields())
+                boolean alterSchemaWithAddColumn = writerConf.alterSchemaWithAddColumn();
+                LOG.info("alterSchemaWithAddColumn:{}", alterSchemaWithAddColumn);
+                if (!schemaCompatible(table.schema(), fromMySql.fields())
                         && alterSchemaWithAddColumn) {
                     LOG.info(
                             errMsg.get()
