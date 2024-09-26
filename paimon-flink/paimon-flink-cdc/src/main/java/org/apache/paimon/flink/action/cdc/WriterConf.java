@@ -23,7 +23,9 @@ import org.apache.paimon.options.ConfigOption;
 import org.apache.paimon.options.Options;
 
 import java.io.Serializable;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -35,48 +37,78 @@ public class WriterConf implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
-    public static final ConfigOption<Boolean> ALTER_SCHEMA_WITH_ADD_COLUMN =
-            key("alter-schema-with-add-column")
-                    .booleanType()
-                    .defaultValue(false)
+    public static final ConfigOption<String> ALTER_SCHEMA =
+            key("alter-schema")
+                    .stringType()
+                    .defaultValue("")
                     .withDescription(
-                            "If set to true, Sync table will alter schema with add column automatically.");
+                            "Sync table will alter schema with specified modes automatically.");
 
-    private final Options writerConf;
     private final Map<String, String> tableConf;
+    private final Set<AlterSchemaMode> alterSchemaModes;
 
     public WriterConf(Options options) {
-        this.writerConf = options;
-        this.tableConf = getTableConf();
+        this.tableConf = getTableConf(options);
+        this.alterSchemaModes = getAlterSchemaModes(options);
     }
 
     public Map<String, String> tableConf() {
         return tableConf;
     }
 
-    protected Map<String, String> getTableConf() {
-        Map<String, String> tableConf = new HashMap<>();
-        writerConf
-                .toMap()
+    protected Map<String, String> getTableConf(Options options) {
+        Map<String, String> conf = new HashMap<>();
+        Set<String> coreOptionKeys = getCoreOptionKeys();
+        Set<String> immutableCoreOptionKeys = CoreOptions.getImmutableOptionKeys();
+        options.toMap()
                 .forEach(
                         (k, v) -> {
                             if (v == null) {
-                                tableConf.remove(k);
-                            } else if (getCoreOptionKeys().contains(k)
-                                    && (!CoreOptions.getImmutableOptionKeys().contains(k))) {
-                                tableConf.put(k, v);
+                                conf.remove(k);
+                            } else if (coreOptionKeys.contains(k)
+                                    && (!immutableCoreOptionKeys.contains(k))) {
+                                conf.put(k, v);
                             }
                         });
-        return tableConf;
+        return conf;
     }
 
-    protected static Set<String> getCoreOptionKeys() {
+    protected Set<String> getCoreOptionKeys() {
         return CoreOptions.getOptions().stream()
                 .map(item -> item.key())
                 .collect(Collectors.toSet());
     }
 
-    public boolean alterSchemaWithAddColumn() {
-        return writerConf.get(ALTER_SCHEMA_WITH_ADD_COLUMN);
+    public Set<AlterSchemaMode> alterSchemaModes() {
+        return alterSchemaModes;
+    }
+
+    protected Set<AlterSchemaMode> getAlterSchemaModes(Options options) {
+        Set<AlterSchemaMode> modes = new HashSet<>();
+        if ("".equalsIgnoreCase(options.get(ALTER_SCHEMA))) {
+            return modes;
+        }
+        Arrays.stream(options.get(ALTER_SCHEMA).split(","))
+                .forEach(
+                        item -> {
+                            try {
+                                AlterSchemaMode mode = AlterSchemaMode.formatValueOf(item);
+                                modes.add(mode);
+                            } catch (IllegalArgumentException e) {
+                                throw new UnsupportedOperationException(
+                                        "Unsupported alter schema mode: " + item);
+                            }
+                        });
+        return modes;
+    }
+
+    /** AlterSchemaMode for alter-schema. */
+    public enum AlterSchemaMode {
+        ADD_COLUMN;
+
+        public static AlterSchemaMode formatValueOf(String name) throws IllegalArgumentException {
+            String formatName = name.toUpperCase().replace("-", "_");
+            return valueOf(formatName);
+        }
     }
 }

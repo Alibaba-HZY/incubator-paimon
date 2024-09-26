@@ -67,7 +67,7 @@ public class FlinkCdcMultiTableSink implements Serializable {
     private final double commitCpuCores;
     @Nullable private final MemorySize commitHeapMemory;
     private final boolean commitChaining;
-    private Map<String, String> dynamicOptions = new HashMap<>();
+    private Map<String, String> dynamicTableConf = new HashMap<>();
 
     public FlinkCdcMultiTableSink(
             Catalog.Loader catalogLoader,
@@ -85,12 +85,12 @@ public class FlinkCdcMultiTableSink implements Serializable {
             double commitCpuCores,
             @Nullable MemorySize commitHeapMemory,
             boolean commitChaining,
-            Map dynamicOptions) {
+            Map dynamicTableConf) {
         this.catalogLoader = catalogLoader;
         this.commitCpuCores = commitCpuCores;
         this.commitHeapMemory = commitHeapMemory;
         this.commitChaining = commitChaining;
-        this.dynamicOptions = dynamicOptions;
+        this.dynamicTableConf = dynamicTableConf;
     }
 
     private StoreSinkWrite.WithWriteBufferProvider createWriteProvider() {
@@ -160,7 +160,7 @@ public class FlinkCdcMultiTableSink implements Serializable {
     protected OneInputStreamOperator<CdcMultiplexRecord, MultiTableCommittable> createWriteOperator(
             StoreSinkWrite.WithWriteBufferProvider writeProvider, String commitUser) {
         return new CdcRecordStoreMultiWriteOperator(
-                catalogLoader, writeProvider, commitUser, new Options(dynamicOptions));
+                catalogLoader, writeProvider, commitUser, new Options(), dynamicTableConf);
     }
 
     // Table committers are dynamically created at runtime
@@ -170,7 +170,7 @@ public class FlinkCdcMultiTableSink implements Serializable {
         // commit new files list even if they're empty.
         // Otherwise we can't tell if the commit is successful after
         // a restart.
-        return context -> new StoreMultiCommitter(catalogLoader, context, false, dynamicOptions);
+        return context -> new StoreMultiCommitter(catalogLoader, context, false, dynamicTableConf);
     }
 
     protected CommittableStateManager<WrappedManifestCommittable> createCommittableStateManager() {

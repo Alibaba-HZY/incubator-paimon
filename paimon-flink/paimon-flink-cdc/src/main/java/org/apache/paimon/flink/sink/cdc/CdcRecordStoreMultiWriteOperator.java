@@ -75,7 +75,7 @@ public class CdcRecordStoreMultiWriteOperator
     private Map<Identifier, StoreSinkWrite> writes;
     private String commitUser;
     private ExecutorService compactExecutor;
-    private Map<String, String> dynamicOptions;
+    private Map<String, String> dynamicTableConf;
 
     public CdcRecordStoreMultiWriteOperator(
             Catalog.Loader catalogLoader,
@@ -86,7 +86,19 @@ public class CdcRecordStoreMultiWriteOperator
         this.catalogLoader = catalogLoader;
         this.storeSinkWriteProvider = storeSinkWriteProvider;
         this.initialCommitUser = initialCommitUser;
-        this.dynamicOptions = options.toMap();
+    }
+
+    public CdcRecordStoreMultiWriteOperator(
+            Catalog.Loader catalogLoader,
+            StoreSinkWrite.WithWriteBufferProvider storeSinkWriteProvider,
+            String initialCommitUser,
+            Options options,
+            Map<String, String> dynamicTableConf) {
+        super(options);
+        this.catalogLoader = catalogLoader;
+        this.storeSinkWriteProvider = storeSinkWriteProvider;
+        this.initialCommitUser = initialCommitUser;
+        this.dynamicTableConf = dynamicTableConf;
     }
 
     @Override
@@ -155,7 +167,7 @@ public class CdcRecordStoreMultiWriteOperator
             FileStoreTable latestTable = table;
             while (true) {
                 latestTable = latestTable.copyWithLatestSchema();
-                latestTable = latestTable.copy(dynamicOptions);
+                latestTable = latestTable.copy(dynamicTableConf);
                 if (LOG.isDebugEnabled()) {
                     LOG.debug(
                             "LatestTable Options with dynamic_table_conf copied: {}",
@@ -189,7 +201,7 @@ public class CdcRecordStoreMultiWriteOperator
             while (true) {
                 try {
                     table = (FileStoreTable) catalog.getTable(tableId);
-                    table = table.copy(dynamicOptions);
+                    table = table.copy(dynamicTableConf);
                     if (LOG.isDebugEnabled()) {
                         LOG.debug(
                                 "Table Options with dynamic_table_conf copied: {}",
