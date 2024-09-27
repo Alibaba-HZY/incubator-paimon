@@ -86,7 +86,19 @@ public class CdcRecordStoreMultiWriteOperator
         this.catalogLoader = catalogLoader;
         this.storeSinkWriteProvider = storeSinkWriteProvider;
         this.initialCommitUser = initialCommitUser;
-        this.dynamicTableConf = options.toMap();
+    }
+
+    public CdcRecordStoreMultiWriteOperator(
+            Catalog.Loader catalogLoader,
+            StoreSinkWrite.WithWriteBufferProvider storeSinkWriteProvider,
+            String initialCommitUser,
+            Options options,
+            Map<String, String> dynamicTableConf) {
+        super(options);
+        this.catalogLoader = catalogLoader;
+        this.storeSinkWriteProvider = storeSinkWriteProvider;
+        this.initialCommitUser = initialCommitUser;
+        this.dynamicTableConf = dynamicTableConf;
     }
 
     @Override

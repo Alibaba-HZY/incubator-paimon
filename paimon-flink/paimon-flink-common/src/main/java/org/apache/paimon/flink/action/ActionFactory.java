@@ -53,7 +53,7 @@ public interface ActionFactory extends Factory {
     String CATALOG_CONF = "catalog_conf";
     String TABLE_CONF = "table_conf";
     String PARTITION = "partition";
-    String DYNAMIC_TABLE_CONF = "dynamic_table_conf";
+    String WRITER_CONF = "writer_conf";
 
     Optional<Action> create(MultipleParameterToolAdapter params);
 

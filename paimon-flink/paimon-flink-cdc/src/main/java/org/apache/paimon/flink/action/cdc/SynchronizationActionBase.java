@@ -28,8 +28,11 @@ import org.apache.paimon.flink.action.cdc.watermark.CdcWatermarkStrategy;
 import org.apache.paimon.flink.sink.cdc.EventParser;
 import org.apache.paimon.flink.sink.cdc.RichCdcMultiplexRecord;
 import org.apache.paimon.options.Options;
+import org.apache.paimon.schema.Schema;
 import org.apache.paimon.schema.SchemaChange;
+import org.apache.paimon.schema.TableSchema;
 import org.apache.paimon.table.FileStoreTable;
+import org.apache.paimon.types.DataField;
 
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.functions.FlatMapFunction;
@@ -38,8 +41,11 @@ import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.functions.source.SourceFunction;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -56,6 +62,7 @@ import static org.apache.paimon.flink.action.cdc.watermark.CdcTimestampExtractor
 
 /** Base {@link Action} for table/database synchronizing job. */
 public abstract class SynchronizationActionBase extends ActionBase {
+    private static final Logger LOG = LoggerFactory.getLogger(SynchronizationActionBase.class);
 
     private static final long DEFAULT_CHECKPOINT_INTERVAL = 3 * 60 * 1000;
 
@@ -65,7 +72,7 @@ public abstract class SynchronizationActionBase extends ActionBase {
     protected final boolean caseSensitive;
 
     protected Map<String, String> tableConfig = new HashMap<>();
-    protected Map<String, String> dynamicTableConfig = new HashMap<>();
+    protected WriterConf writerConf = new WriterConf(new Options());
     protected TypeMapping typeMapping = TypeMapping.defaultMapping();
     protected CdcMetadataConverter[] metadataConverters = new CdcMetadataConverter[] {};
 
@@ -89,9 +96,8 @@ public abstract class SynchronizationActionBase extends ActionBase {
         return this;
     }
 
-    public SynchronizationActionBase withDynamicTableConfig(
-            Map<String, String> dynamicTableConfig) {
-        this.dynamicTableConfig = dynamicTableConfig;
+    public SynchronizationActionBase withWriterConfig(Map<String, String> writerConf) {
+        this.writerConf = new WriterConf(new Options(writerConf));
         return this;
     }
 
@@ -114,8 +120,8 @@ public abstract class SynchronizationActionBase extends ActionBase {
     }
 
     @VisibleForTesting
-    public Map<String, String> dynamicTableConfig() {
-        return dynamicTableConfig;
+    public WriterConf writerConf() {
+        return writerConf;
     }
 
     @Override
@@ -188,6 +194,59 @@ public abstract class SynchronizationActionBase extends ActionBase {
     protected abstract void buildSink(
             DataStream<RichCdcMultiplexRecord> input,
             EventParser.Factory<RichCdcMultiplexRecord> parserFactory);
+
+    protected FileStoreTable alterTable(
+            Identifier identifier,
+            FileStoreTable table,
+            Schema newSchema,
+            Set<WriterConf.AlterSchemaMode> alterSchemaModes) {
+        TableSchema oldSchema = table.schema();
+        List<DataField> newSchemaFields = newSchema.fields();
+        List<SchemaChange> schemaFieldsChanges = new ArrayList<>();
+
+        if (alterSchemaModes.contains(WriterConf.AlterSchemaMode.ADD_COLUMN)) {
+            List<DataField> newFieldsAdds =
+                    newSchemaFields.stream()
+                            .filter(
+                                    field -> {
+                                        int idx = oldSchema.fieldNames().indexOf(field.name());
+                                        if (idx < 0) {
+                                            return true;
+                                        }
+                                        return false;
+                                    })
+                            .collect(Collectors.toList());
+            schemaFieldsChanges.addAll(
+                    newFieldsAdds.stream()
+                            .map(
+                                    field -> {
+                                        LOG.info(
+                                                "Paimon schema add column, name:{}, type:{}, description:{}",
+                                                field.name(),
+                                                field.type(),
+                                                field.description());
+                                        return SchemaChange.addColumn(
+                                                field.name(), field.type(), field.description());
+                                    })
+                            .collect(Collectors.toList()));
+            LOG.info("Paimon schema will add {} columns.", schemaFieldsChanges.size());
+        }
+
+        if (schemaFieldsChanges.size() == 0) {
+            return table;
+        }
+
+        try {
+            catalog.alterTable(identifier, schemaFieldsChanges, false);
+            table = (FileStoreTable) catalog.getTable(identifier);
+        } catch (Catalog.TableNotExistException
+                | Catalog.ColumnAlreadyExistException
+                | Catalog.ColumnNotExistException e) {
+            throw new RuntimeException("This is unexpected.", e);
+        }
+
+        return table;
+    }
 
     protected FileStoreTable alterTableOptions(Identifier identifier, FileStoreTable table) {
         // doesn't support altering bucket here

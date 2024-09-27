@@ -27,6 +27,7 @@ import org.apache.paimon.flink.action.cdc.CdcSourceRecord;
 import org.apache.paimon.flink.action.cdc.SyncDatabaseActionBase;
 import org.apache.paimon.flink.action.cdc.SyncJobHandler;
 import org.apache.paimon.flink.action.cdc.TableNameConverter;
+import org.apache.paimon.flink.action.cdc.WriterConf;
 import org.apache.paimon.flink.action.cdc.schema.JdbcSchemasInfo;
 import org.apache.paimon.flink.action.cdc.schema.JdbcTableInfo;
 import org.apache.paimon.schema.Schema;
@@ -45,6 +46,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -139,6 +141,10 @@ public class MySqlSyncDatabaseAction extends SyncDatabaseActionBase {
 
         TableNameConverter tableNameConverter =
                 new TableNameConverter(caseSensitive, mergeShards, tablePrefix, tableSuffix);
+
+        Set<WriterConf.AlterSchemaMode> alterSchemaModes = writerConf.alterSchemaModes();
+        LOG.info("alterTable:{}", alterSchemaModes);
+
         for (JdbcTableInfo tableInfo : jdbcTableInfos) {
             Identifier identifier =
                     Identifier.create(
@@ -166,6 +172,9 @@ public class MySqlSyncDatabaseAction extends SyncDatabaseActionBase {
                 table = (FileStoreTable) catalog.getTable(identifier);
                 Supplier<String> errMsg =
                         incompatibleMessage(table.schema(), tableInfo, identifier);
+                if (alterSchemaModes.size() != 0) {
+                    table = alterTable(identifier, table, fromMySql, alterSchemaModes);
+                }
                 if (shouldMonitorTable(table.schema(), fromMySql, errMsg)) {
                     table = alterTableOptions(identifier, table);
                     tables.add(table);

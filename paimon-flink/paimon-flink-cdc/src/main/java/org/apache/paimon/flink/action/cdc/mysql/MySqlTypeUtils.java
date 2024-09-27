@@ -43,6 +43,7 @@ import java.util.Optional;
 
 import static org.apache.paimon.flink.action.cdc.TypeMapping.TypeMappingMode.BIGINT_UNSIGNED_TO_BIGINT;
 import static org.apache.paimon.flink.action.cdc.TypeMapping.TypeMappingMode.CHAR_TO_STRING;
+import static org.apache.paimon.flink.action.cdc.TypeMapping.TypeMappingMode.DECIMAL_TO_STRING;
 import static org.apache.paimon.flink.action.cdc.TypeMapping.TypeMappingMode.LONGTEXT_TO_BYTES;
 import static org.apache.paimon.flink.action.cdc.TypeMapping.TypeMappingMode.TINYINT1_NOT_BOOL;
 import static org.apache.paimon.flink.action.cdc.TypeMapping.TypeMappingMode.TO_STRING;
@@ -235,9 +236,14 @@ public class MySqlTypeUtils {
             case DECIMAL:
             case DECIMAL_UNSIGNED:
             case DECIMAL_UNSIGNED_ZEROFILL:
-                return length != null && length <= 38
-                        ? DataTypes.DECIMAL(length, scale != null && scale >= 0 ? scale : 0)
-                        : DataTypes.STRING();
+                {
+                    if (typeMapping.containsMode(DECIMAL_TO_STRING)) {
+                        return DataTypes.STRING();
+                    }
+                    return length != null && length <= 38
+                            ? DataTypes.DECIMAL(length, scale != null && scale >= 0 ? scale : 0)
+                            : DataTypes.STRING();
+                }
             case DATE:
                 return DataTypes.DATE();
             case TIME:

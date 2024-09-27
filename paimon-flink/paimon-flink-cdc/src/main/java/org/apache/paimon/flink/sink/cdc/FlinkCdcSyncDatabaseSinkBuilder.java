@@ -22,6 +22,7 @@ import org.apache.paimon.catalog.Catalog;
 import org.apache.paimon.catalog.Identifier;
 import org.apache.paimon.flink.FlinkConnectorOptions;
 import org.apache.paimon.flink.action.MultiTablesSinkMode;
+import org.apache.paimon.flink.action.cdc.WriterConf;
 import org.apache.paimon.flink.sink.FlinkWriteSink;
 import org.apache.paimon.flink.utils.SingleOutputStreamOperatorUtils;
 import org.apache.paimon.options.MemorySize;
@@ -39,7 +40,6 @@ import org.slf4j.LoggerFactory;
 import javax.annotation.Nullable;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -66,7 +66,7 @@ public class FlinkCdcSyncDatabaseSinkBuilder<T> {
     private DataStream<T> input = null;
     private EventParser.Factory<T> parserFactory = null;
     private List<FileStoreTable> tables = new ArrayList<>();
-    private Map<String, String> dynamicTableConfig = new HashMap<>();
+    private WriterConf writerConfig = new WriterConf(new Options());
 
     @Nullable private Integer parallelism;
     private double committerCpu;
@@ -103,9 +103,8 @@ public class FlinkCdcSyncDatabaseSinkBuilder<T> {
         return withTableOptions(Options.fromMap(options));
     }
 
-    public FlinkCdcSyncDatabaseSinkBuilder<T> withDynamicTableConfig(
-            Map<String, String> dynamicTableConfig) {
-        this.dynamicTableConfig = dynamicTableConfig;
+    public FlinkCdcSyncDatabaseSinkBuilder<T> withWriterConfig(WriterConf writerConfig) {
+        this.writerConfig = writerConfig;
         return this;
     }
 
@@ -179,7 +178,7 @@ public class FlinkCdcSyncDatabaseSinkBuilder<T> {
                         committerCpu,
                         committerMemory,
                         commitChaining,
-                        dynamicTableConfig);
+                        writerConfig.tableConf());
         sink.sinkFrom(partitioned);
     }
 
@@ -202,7 +201,7 @@ public class FlinkCdcSyncDatabaseSinkBuilder<T> {
                         .setParallelism(input.getParallelism());
 
         for (FileStoreTable table : tables) {
-            table = table.copy(dynamicTableConfig);
+            table = table.copy(writerConfig.tableConf());
             if (LOG.isDebugEnabled()) {
                 LOG.debug("Table Options with dynamic_table_conf copied: {}", table.options());
             }

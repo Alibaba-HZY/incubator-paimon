@@ -34,10 +34,12 @@ public class ExtraColumn implements Serializable {
 
     private final String columnName;
     private final NoFiledExpression expression;
+    private final String description;
 
-    public ExtraColumn(String columnName, NoFiledExpression expression) {
+    public ExtraColumn(String columnName, NoFiledExpression expression, String description) {
         this.columnName = columnName;
         this.expression = expression;
+        this.description = description;
     }
 
     public String columnName() {
@@ -46,6 +48,10 @@ public class ExtraColumn implements Serializable {
 
     public DataType columnType() {
         return expression.outputType();
+    }
+
+    public String description() {
+        return description;
     }
 
     /** Compute column's value from given argument. Return null if input is null. */
