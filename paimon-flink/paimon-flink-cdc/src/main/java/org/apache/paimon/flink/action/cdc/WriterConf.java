@@ -24,10 +24,11 @@ import org.apache.paimon.options.Options;
 
 import java.io.Serializable;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.apache.paimon.options.ConfigOptions.key;
@@ -45,11 +46,11 @@ public class WriterConf implements Serializable {
                             "Sync table will alter schema with specified modes automatically.");
 
     private final Map<String, String> tableConf;
-    private final Set<AlterSchemaMode> alterSchemaModes;
+    private final AlterSchemaMapping alterSchemaMapping;
 
     public WriterConf(Options options) {
         this.tableConf = getTableConf(options);
-        this.alterSchemaModes = getAlterSchemaModes(options);
+        this.alterSchemaMapping = getAlterSchemaMapping(options);
     }
 
     public Map<String, String> tableConf() {
@@ -79,36 +80,76 @@ public class WriterConf implements Serializable {
                 .collect(Collectors.toSet());
     }
 
-    public Set<AlterSchemaMode> alterSchemaModes() {
-        return alterSchemaModes;
+    public AlterSchemaMapping alterSchemaMapping() {
+        return alterSchemaMapping;
     }
 
-    protected Set<AlterSchemaMode> getAlterSchemaModes(Options options) {
-        Set<AlterSchemaMode> modes = new HashSet<>();
-        if ("".equalsIgnoreCase(options.get(ALTER_SCHEMA))) {
-            return modes;
+    protected AlterSchemaMapping getAlterSchemaMapping(Options options) {
+        if ("".equals(options.get(ALTER_SCHEMA))) {
+            return AlterSchemaMapping.defaultMapping();
+        } else {
+            return AlterSchemaMapping.parse(options.get(ALTER_SCHEMA).split(","));
         }
-        Arrays.stream(options.get(ALTER_SCHEMA).split(","))
-                .forEach(
-                        item -> {
-                            try {
-                                AlterSchemaMode mode = AlterSchemaMode.formatValueOf(item);
-                                modes.add(mode);
-                            } catch (IllegalArgumentException e) {
-                                throw new UnsupportedOperationException(
-                                        "Unsupported alter schema mode: " + item);
-                            }
-                        });
-        return modes;
     }
 
-    /** AlterSchemaMode for alter-schema. */
-    public enum AlterSchemaMode {
-        ADD_COLUMN;
+    /** AlterSchemaMapping for alter-schema. */
+    public static class AlterSchemaMapping {
+        private final Set<AlterSchemaMappingMode> alterSchemaMappingModes;
 
-        public static AlterSchemaMode formatValueOf(String name) throws IllegalArgumentException {
-            String formatName = name.toUpperCase().replace("-", "_");
-            return valueOf(formatName);
+        public AlterSchemaMapping(Set<AlterSchemaMappingMode> alterSchemaMappingModes) {
+            this.alterSchemaMappingModes = alterSchemaMappingModes;
+        }
+
+        public Set<AlterSchemaMappingMode> alterSchemaMappingModes() {
+            return alterSchemaMappingModes;
+        }
+
+        public boolean containsMode(AlterSchemaMappingMode mode) {
+            return alterSchemaMappingModes.contains(mode);
+        }
+
+        public int modeSize() {
+            return alterSchemaMappingModes.size();
+        }
+
+        public static AlterSchemaMapping defaultMapping() {
+            return new AlterSchemaMapping(Collections.emptySet());
+        }
+
+        public static AlterSchemaMapping parse(String[] rawOptions) {
+            Set<AlterSchemaMappingMode> alterSchemaMappingModes =
+                    Arrays.stream(rawOptions)
+                            .map(String::trim)
+                            .map(String::toLowerCase)
+                            .map(AlterSchemaMappingMode::mode)
+                            .collect(Collectors.toSet());
+            return new AlterSchemaMapping(alterSchemaMappingModes);
+        }
+
+        /** AlterSchemaMappingMode for alterSchemaMapping. */
+        public enum AlterSchemaMappingMode {
+            ADD_COLUMN;
+
+            private static final Map<String, AlterSchemaMappingMode> AlTER_SCHEMA_MAPPING_OPTIONS =
+                    Arrays.stream(AlterSchemaMappingMode.values())
+                            .collect(
+                                    Collectors.toMap(
+                                            AlterSchemaMappingMode::configString,
+                                            Function.identity()));
+
+            public static AlterSchemaMappingMode mode(String option) {
+                AlterSchemaMappingMode alterSchemaMappingMode =
+                        AlTER_SCHEMA_MAPPING_OPTIONS.get(option);
+                if (alterSchemaMappingMode == null) {
+                    throw new UnsupportedOperationException(
+                            "Unsupported alter-schema mapping option: " + option);
+                }
+                return alterSchemaMappingMode;
+            }
+
+            public String configString() {
+                return name().toLowerCase().replace("_", "-");
+            }
         }
     }
 }

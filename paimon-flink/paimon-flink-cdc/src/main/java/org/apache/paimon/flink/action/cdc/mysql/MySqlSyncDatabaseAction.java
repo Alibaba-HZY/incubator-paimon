@@ -46,7 +46,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -142,8 +141,8 @@ public class MySqlSyncDatabaseAction extends SyncDatabaseActionBase {
         TableNameConverter tableNameConverter =
                 new TableNameConverter(caseSensitive, mergeShards, tablePrefix, tableSuffix);
 
-        Set<WriterConf.AlterSchemaMode> alterSchemaModes = writerConf.alterSchemaModes();
-        LOG.info("alterTable:{}", alterSchemaModes);
+        WriterConf.AlterSchemaMapping alterSchemaMapping = writerConf.alterSchemaMapping();
+        LOG.info("alterSchemaMappingModes:{}", alterSchemaMapping.alterSchemaMappingModes());
 
         for (JdbcTableInfo tableInfo : jdbcTableInfos) {
             Identifier identifier =
@@ -172,8 +171,8 @@ public class MySqlSyncDatabaseAction extends SyncDatabaseActionBase {
                 table = (FileStoreTable) catalog.getTable(identifier);
                 Supplier<String> errMsg =
                         incompatibleMessage(table.schema(), tableInfo, identifier);
-                if (alterSchemaModes.size() != 0) {
-                    table = alterTable(identifier, table, fromMySql, alterSchemaModes);
+                if (alterSchemaMapping.modeSize() > 0) {
+                    table = alterTable(identifier, table, fromMySql, alterSchemaMapping);
                 }
                 if (shouldMonitorTable(table.schema(), fromMySql, errMsg)) {
                     table = alterTableOptions(identifier, table);
