@@ -198,7 +198,7 @@ public abstract class SynchronizationActionBase extends ActionBase {
             Identifier identifier,
             FileStoreTable table,
             Schema newSchema,
-            WriterConf.AlterSchemaMapping alterSchemaMapping) {
+            Set<WriterConf.AlterSchemaMode> alterSchemaModes) {
         List<DataField> newSchemaFields = newSchema.fields();
         List<SchemaChange> schemaFieldsChanges = new ArrayList<>();
 
@@ -210,8 +210,7 @@ public abstract class SynchronizationActionBase extends ActionBase {
                         "Cannot find Source field '{}' in Paimon table '{}'.",
                         field.name(),
                         table.name());
-                if (alterSchemaMapping.containsMode(
-                        WriterConf.AlterSchemaMapping.AlterSchemaMappingMode.ADD_COLUMN)) {
+                if (alterSchemaModes.contains(WriterConf.AlterSchemaMode.ADD_COLUMN)) {
                     LOG.info(
                             "Paimon schema will add column, name:{}, type:{}, description:{}",
                             field.name(),
@@ -231,8 +230,7 @@ public abstract class SynchronizationActionBase extends ActionBase {
                     "Cannot find Paimon fields '{}' in Source table '{}'.",
                     tmpOldSchemaFieldNames.toArray(),
                     table.name());
-            if (alterSchemaMapping.containsMode(
-                    WriterConf.AlterSchemaMapping.AlterSchemaMappingMode.ADD_COLUMN)) {
+            if (alterSchemaModes.contains(WriterConf.AlterSchemaMode.ADD_COLUMN)) {
                 throw new IllegalArgumentException(
                         "Please check paimon table '"
                                 + table.name()

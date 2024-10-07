@@ -46,11 +46,11 @@ public class WriterConf implements Serializable {
                             "Sync table will alter schema with specified modes automatically.");
 
     private final Map<String, String> tableConf;
-    private final AlterSchemaMapping alterSchemaMapping;
+    private final Set<AlterSchemaMode> alterSchemaModes;
 
     public WriterConf(Options options) {
         this.tableConf = getTableConf(options);
-        this.alterSchemaMapping = getAlterSchemaMapping(options);
+        this.alterSchemaModes = getAlterSchemaModes(options);
     }
 
     public Map<String, String> tableConf() {
@@ -80,76 +80,43 @@ public class WriterConf implements Serializable {
                 .collect(Collectors.toSet());
     }
 
-    public AlterSchemaMapping alterSchemaMapping() {
-        return alterSchemaMapping;
+    public Set<AlterSchemaMode> alterSchemaModes() {
+        return alterSchemaModes;
     }
 
-    protected AlterSchemaMapping getAlterSchemaMapping(Options options) {
+    protected Set<AlterSchemaMode> getAlterSchemaModes(Options options) {
         if ("".equals(options.get(ALTER_SCHEMA))) {
-            return AlterSchemaMapping.defaultMapping();
+            return Collections.emptySet();
         } else {
-            return AlterSchemaMapping.parse(options.get(ALTER_SCHEMA).split(","));
+            String[] rawOptions = options.get(ALTER_SCHEMA).split(",");
+            return Arrays.stream(rawOptions)
+                    .map(String::trim)
+                    .map(String::toLowerCase)
+                    .map(AlterSchemaMode::mode)
+                    .collect(Collectors.toSet());
         }
     }
 
-    /** AlterSchemaMapping for alter-schema. */
-    public static class AlterSchemaMapping {
-        private final Set<AlterSchemaMappingMode> alterSchemaMappingModes;
+    /** AlterSchemaMode for alter-schema. */
+    public enum AlterSchemaMode {
+        ADD_COLUMN;
 
-        public AlterSchemaMapping(Set<AlterSchemaMappingMode> alterSchemaMappingModes) {
-            this.alterSchemaMappingModes = alterSchemaMappingModes;
-        }
+        private static final Map<String, AlterSchemaMode> AlTER_SCHEMA_MODES =
+                Arrays.stream(AlterSchemaMode.values())
+                        .collect(
+                                Collectors.toMap(
+                                        AlterSchemaMode::configString, Function.identity()));
 
-        public Set<AlterSchemaMappingMode> alterSchemaMappingModes() {
-            return alterSchemaMappingModes;
-        }
-
-        public boolean containsMode(AlterSchemaMappingMode mode) {
-            return alterSchemaMappingModes.contains(mode);
-        }
-
-        public int modeSize() {
-            return alterSchemaMappingModes.size();
-        }
-
-        public static AlterSchemaMapping defaultMapping() {
-            return new AlterSchemaMapping(Collections.emptySet());
-        }
-
-        public static AlterSchemaMapping parse(String[] rawOptions) {
-            Set<AlterSchemaMappingMode> alterSchemaMappingModes =
-                    Arrays.stream(rawOptions)
-                            .map(String::trim)
-                            .map(String::toLowerCase)
-                            .map(AlterSchemaMappingMode::mode)
-                            .collect(Collectors.toSet());
-            return new AlterSchemaMapping(alterSchemaMappingModes);
-        }
-
-        /** AlterSchemaMappingMode for alterSchemaMapping. */
-        public enum AlterSchemaMappingMode {
-            ADD_COLUMN;
-
-            private static final Map<String, AlterSchemaMappingMode> AlTER_SCHEMA_MAPPING_OPTIONS =
-                    Arrays.stream(AlterSchemaMappingMode.values())
-                            .collect(
-                                    Collectors.toMap(
-                                            AlterSchemaMappingMode::configString,
-                                            Function.identity()));
-
-            public static AlterSchemaMappingMode mode(String option) {
-                AlterSchemaMappingMode alterSchemaMappingMode =
-                        AlTER_SCHEMA_MAPPING_OPTIONS.get(option);
-                if (alterSchemaMappingMode == null) {
-                    throw new UnsupportedOperationException(
-                            "Unsupported alter-schema mapping option: " + option);
-                }
-                return alterSchemaMappingMode;
+        public static AlterSchemaMode mode(String option) {
+            AlterSchemaMode alterSchemaMode = AlTER_SCHEMA_MODES.get(option);
+            if (alterSchemaMode == null) {
+                throw new UnsupportedOperationException("Unsupported alter-schema mode: " + option);
             }
+            return alterSchemaMode;
+        }
 
-            public String configString() {
-                return name().toLowerCase().replace("_", "-");
-            }
+        public String configString() {
+            return name().toLowerCase().replace("_", "-");
         }
     }
 }
