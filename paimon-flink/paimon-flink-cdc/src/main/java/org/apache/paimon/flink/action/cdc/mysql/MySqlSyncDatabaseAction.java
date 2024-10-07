@@ -143,7 +143,7 @@ public class MySqlSyncDatabaseAction extends SyncDatabaseActionBase {
                 new TableNameConverter(caseSensitive, mergeShards, tablePrefix, tableSuffix);
 
         Set<WriterConf.AlterSchemaMode> alterSchemaModes = writerConf.alterSchemaModes();
-        LOG.info("alterTable:{}", alterSchemaModes);
+        LOG.info("alterSchemaModes:{}", alterSchemaModes);
 
         for (JdbcTableInfo tableInfo : jdbcTableInfos) {
             Identifier identifier =
@@ -172,7 +172,7 @@ public class MySqlSyncDatabaseAction extends SyncDatabaseActionBase {
                 table = (FileStoreTable) catalog.getTable(identifier);
                 Supplier<String> errMsg =
                         incompatibleMessage(table.schema(), tableInfo, identifier);
-                if (alterSchemaModes.size() != 0) {
+                if (alterSchemaModes.size() > 0) {
                     table = alterTable(identifier, table, fromMySql, alterSchemaModes);
                 }
                 if (shouldMonitorTable(table.schema(), fromMySql, errMsg)) {
