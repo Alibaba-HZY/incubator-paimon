@@ -99,7 +99,8 @@ public class WriterConf implements Serializable {
 
     /** AlterSchemaMode for alter-schema. */
     public enum AlterSchemaMode {
-        ADD_COLUMN;
+        ADD_COLUMN,
+        UPDATE_COLUMN;
 
         private static final Map<String, AlterSchemaMode> AlTER_SCHEMA_MODES =
                 Arrays.stream(AlterSchemaMode.values())

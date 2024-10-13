@@ -30,6 +30,7 @@ import org.apache.paimon.flink.sink.cdc.RichCdcMultiplexRecord;
 import org.apache.paimon.options.Options;
 import org.apache.paimon.schema.Schema;
 import org.apache.paimon.schema.SchemaChange;
+import org.apache.paimon.schema.TableSchema;
 import org.apache.paimon.table.FileStoreTable;
 import org.apache.paimon.types.DataField;
 
@@ -44,7 +45,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -199,59 +199,17 @@ public abstract class SynchronizationActionBase extends ActionBase {
             FileStoreTable table,
             Schema newSchema,
             Set<WriterConf.AlterSchemaMode> alterSchemaModes) {
+        TableSchema oldSchema = table.schema();
         List<DataField> newSchemaFields = newSchema.fields();
-        List<SchemaChange> schemaFieldsChanges = new ArrayList<>();
+        List<SchemaChange> schemaFieldsChanges =
+                CdcActionCommonUtils.extractSchemaChanges(table, newSchemaFields, alterSchemaModes);
+        CdcActionCommonUtils.applySchemaChange(oldSchema, schemaFieldsChanges, identifier, catalog);
 
-        List<String> tmpOldSchemaFieldNames = table.schema().fieldNames();
-        for (DataField field : newSchemaFields) {
-            int idx = tmpOldSchemaFieldNames.indexOf(field.name());
-            if (idx < 0) {
-                LOG.info(
-                        "Cannot find Source field '{}' in Paimon table '{}'.",
-                        field.name(),
-                        table.name());
-                if (alterSchemaModes.contains(WriterConf.AlterSchemaMode.ADD_COLUMN)) {
-                    LOG.info(
-                            "Paimon schema will add column, name:{}, type:{}, description:{}",
-                            field.name(),
-                            field.type(),
-                            field.description());
-                    schemaFieldsChanges.add(
-                            SchemaChange.addColumn(
-                                    field.name(), field.type(), field.description()));
-                }
-            } else {
-                tmpOldSchemaFieldNames.remove(idx);
-            }
+        try {
+            table = (FileStoreTable) catalog.getTable(identifier);
+        } catch (Catalog.TableNotExistException e) {
+            throw new RuntimeException("This is unexpected.", e);
         }
-
-        if (tmpOldSchemaFieldNames.size() > 0) {
-            LOG.warn(
-                    "Cannot find Paimon fields '{}' in Source table '{}'.",
-                    tmpOldSchemaFieldNames.toArray(),
-                    table.name());
-            if (alterSchemaModes.contains(WriterConf.AlterSchemaMode.ADD_COLUMN)) {
-                throw new IllegalArgumentException(
-                        "Please check paimon table '"
-                                + table.name()
-                                + "' fields '"
-                                + tmpOldSchemaFieldNames.toArray()
-                                + "' when use add-column mode, we can not find it in source table.");
-            }
-        }
-
-        if (schemaFieldsChanges.size() > 0) {
-            LOG.info("This table will alter schema automatically.");
-            try {
-                catalog.alterTable(identifier, schemaFieldsChanges, false);
-                table = (FileStoreTable) catalog.getTable(identifier);
-            } catch (Catalog.TableNotExistException
-                    | Catalog.ColumnAlreadyExistException
-                    | Catalog.ColumnNotExistException e) {
-                throw new RuntimeException("This is unexpected.", e);
-            }
-        }
-
         return table;
     }
 
