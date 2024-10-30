@@ -45,7 +45,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -202,49 +201,15 @@ public abstract class SynchronizationActionBase extends ActionBase {
             Set<WriterConf.AlterSchemaMode> alterSchemaModes) {
         TableSchema oldSchema = table.schema();
         List<DataField> newSchemaFields = newSchema.fields();
-        List<SchemaChange> schemaFieldsChanges = new ArrayList<>();
-
-        if (alterSchemaModes.contains(WriterConf.AlterSchemaMode.ADD_COLUMN)) {
-            List<DataField> newFieldsAdds =
-                    newSchemaFields.stream()
-                            .filter(
-                                    field -> {
-                                        int idx = oldSchema.fieldNames().indexOf(field.name());
-                                        if (idx < 0) {
-                                            return true;
-                                        }
-                                        return false;
-                                    })
-                            .collect(Collectors.toList());
-            schemaFieldsChanges.addAll(
-                    newFieldsAdds.stream()
-                            .map(
-                                    field -> {
-                                        LOG.info(
-                                                "Paimon schema add column, name:{}, type:{}, description:{}",
-                                                field.name(),
-                                                field.type(),
-                                                field.description());
-                                        return SchemaChange.addColumn(
-                                                field.name(), field.type(), field.description());
-                                    })
-                            .collect(Collectors.toList()));
-            LOG.info("Paimon schema will add {} columns.", schemaFieldsChanges.size());
-        }
-
-        if (schemaFieldsChanges.size() == 0) {
-            return table;
-        }
+        List<SchemaChange> schemaFieldsChanges =
+                CdcActionCommonUtils.extractSchemaChanges(table, newSchemaFields, alterSchemaModes);
+        CdcActionCommonUtils.applySchemaChange(oldSchema, schemaFieldsChanges, identifier, catalog);
 
         try {
-            catalog.alterTable(identifier, schemaFieldsChanges, false);
             table = (FileStoreTable) catalog.getTable(identifier);
-        } catch (Catalog.TableNotExistException
-                | Catalog.ColumnAlreadyExistException
-                | Catalog.ColumnNotExistException e) {
+        } catch (Catalog.TableNotExistException e) {
             throw new RuntimeException("This is unexpected.", e);
         }
-
         return table;
     }
 

@@ -24,10 +24,11 @@ import org.apache.paimon.options.Options;
 
 import java.io.Serializable;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.apache.paimon.options.ConfigOptions.key;
@@ -84,31 +85,39 @@ public class WriterConf implements Serializable {
     }
 
     protected Set<AlterSchemaMode> getAlterSchemaModes(Options options) {
-        Set<AlterSchemaMode> modes = new HashSet<>();
-        if ("".equalsIgnoreCase(options.get(ALTER_SCHEMA))) {
-            return modes;
+        if ("".equals(options.get(ALTER_SCHEMA))) {
+            return Collections.emptySet();
+        } else {
+            String[] rawOptions = options.get(ALTER_SCHEMA).split(",");
+            return Arrays.stream(rawOptions)
+                    .map(String::trim)
+                    .map(String::toLowerCase)
+                    .map(AlterSchemaMode::mode)
+                    .collect(Collectors.toSet());
         }
-        Arrays.stream(options.get(ALTER_SCHEMA).split(","))
-                .forEach(
-                        item -> {
-                            try {
-                                AlterSchemaMode mode = AlterSchemaMode.formatValueOf(item);
-                                modes.add(mode);
-                            } catch (IllegalArgumentException e) {
-                                throw new UnsupportedOperationException(
-                                        "Unsupported alter schema mode: " + item);
-                            }
-                        });
-        return modes;
     }
 
     /** AlterSchemaMode for alter-schema. */
     public enum AlterSchemaMode {
-        ADD_COLUMN;
+        ADD_COLUMN,
+        UPDATE_COLUMN;
 
-        public static AlterSchemaMode formatValueOf(String name) throws IllegalArgumentException {
-            String formatName = name.toUpperCase().replace("-", "_");
-            return valueOf(formatName);
+        private static final Map<String, AlterSchemaMode> AlTER_SCHEMA_MODES =
+                Arrays.stream(AlterSchemaMode.values())
+                        .collect(
+                                Collectors.toMap(
+                                        AlterSchemaMode::configString, Function.identity()));
+
+        public static AlterSchemaMode mode(String option) {
+            AlterSchemaMode alterSchemaMode = AlTER_SCHEMA_MODES.get(option);
+            if (alterSchemaMode == null) {
+                throw new UnsupportedOperationException("Unsupported alter-schema mode: " + option);
+            }
+            return alterSchemaMode;
+        }
+
+        public String configString() {
+            return name().toLowerCase().replace("_", "-");
         }
     }
 }
