@@ -20,6 +20,7 @@ package org.apache.paimon.flink.sink.cdc;
 
 import org.apache.paimon.catalog.Catalog;
 import org.apache.paimon.catalog.Identifier;
+import org.apache.paimon.flink.action.cdc.WriterConf;
 import org.apache.paimon.schema.SchemaChange;
 import org.apache.paimon.schema.SchemaManager;
 import org.apache.paimon.schema.TableSchema;
@@ -40,6 +41,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /** Base class for update data fields process function. */
 public abstract class UpdatedDataFieldsProcessFunctionBase<I, O> extends ProcessFunction<I, O> {
@@ -48,6 +50,8 @@ public abstract class UpdatedDataFieldsProcessFunctionBase<I, O> extends Process
 
     protected Catalog catalog;
     protected final Catalog.Loader catalogLoader;
+    protected WriterConf writerConfig;
+    protected static Set<WriterConf.IgnoreSchemaChangeMode> ignoreSchemaChangeModes;
     private static final List<DataTypeRoot> STRING_TYPES =
             Arrays.asList(DataTypeRoot.CHAR, DataTypeRoot.VARCHAR);
     private static final List<DataTypeRoot> BINARY_TYPES =
@@ -70,9 +74,16 @@ public abstract class UpdatedDataFieldsProcessFunctionBase<I, O> extends Process
         this.catalogLoader = catalogLoader;
     }
 
+    protected UpdatedDataFieldsProcessFunctionBase(
+            Catalog.Loader catalogLoader, WriterConf writerConfig) {
+        this.catalogLoader = catalogLoader;
+        this.writerConfig = writerConfig;
+    }
+
     @Override
     public void open(Configuration parameters) {
         this.catalog = catalogLoader.load();
+        this.ignoreSchemaChangeModes = writerConfig.ignoreSchemaChangeMapping();
     }
 
     protected void applySchemaChange(
@@ -114,6 +125,9 @@ public abstract class UpdatedDataFieldsProcessFunctionBase<I, O> extends Process
             switch (canConvert(oldType, newType)) {
                 case CONVERT:
                     catalog.alterTable(identifier, schemaChange, false);
+                    break;
+                case IGNORE:
+                    LOG.info("Ignore schema change from type {} to type {}", oldType, newType);
                     break;
                 case EXCEPTION:
                     throw new UnsupportedOperationException(
@@ -183,6 +197,15 @@ public abstract class UpdatedDataFieldsProcessFunctionBase<I, O> extends Process
             return DataTypeChecks.getPrecision(oldType) <= DataTypeChecks.getPrecision(newType)
                     ? ConvertAction.CONVERT
                     : ConvertAction.IGNORE;
+        }
+
+        if (!ignoreSchemaChangeModes.isEmpty()) {
+            newIdx = INTEGER_TYPES.indexOf(newType.getTypeRoot());
+            if (ignoreSchemaChangeModes.contains(WriterConf.IgnoreSchemaChangeMode.INT_TO_STRING)
+                    && oldType.getTypeRoot() == DataTypeRoot.VARCHAR
+                    && newIdx >= 0) {
+                return ConvertAction.IGNORE;
+            }
         }
 
         return ConvertAction.EXCEPTION;

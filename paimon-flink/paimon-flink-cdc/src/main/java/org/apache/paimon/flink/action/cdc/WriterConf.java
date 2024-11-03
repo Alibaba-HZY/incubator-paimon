@@ -22,10 +22,14 @@ import org.apache.paimon.CoreOptions;
 import org.apache.paimon.options.ConfigOption;
 import org.apache.paimon.options.Options;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -45,12 +49,31 @@ public class WriterConf implements Serializable {
                     .withDescription(
                             "Sync table will alter schema with specified modes automatically.");
 
+    public static final ConfigOption<String> IGNORE_SCHEMA_CHANGE =
+            key("ignore-schema-change")
+                    .stringType()
+                    .defaultValue("")
+                    .withDescription(
+                            "It allows inconsistent fields to be written, you can add value like '<sourceType>-to-<schemaType>'."
+                                    + " The following field types are currently compatible: "
+                                    + " int-to-string ( this config including : bigint-to-string, smallint-to-string, int-to-string) .");
+
     private final Map<String, String> tableConf;
     private final Set<AlterSchemaMode> alterSchemaModes;
+    private final Set<IgnoreSchemaChangeMode> ignoreSchemaChangeModes;
 
     public WriterConf(Options options) {
         this.tableConf = getTableConf(options);
         this.alterSchemaModes = getAlterSchemaModes(options);
+        this.ignoreSchemaChangeModes = getIgnoreOptions(options);
+    }
+
+    public Set<IgnoreSchemaChangeMode> ignoreSchemaChangeMapping() {
+        return ignoreSchemaChangeModes;
+    }
+
+    protected Set<IgnoreSchemaChangeMode> getIgnoreOptions(Options options) {
+        return IgnoreSchemaChangeMode.getIgnoreOptions(options);
     }
 
     public Map<String, String> tableConf() {
@@ -114,6 +137,45 @@ public class WriterConf implements Serializable {
                 throw new UnsupportedOperationException("Unsupported alter-schema mode: " + option);
             }
             return alterSchemaMode;
+        }
+
+        public String configString() {
+            return name().toLowerCase().replace("_", "-");
+        }
+    }
+
+    /** IgnoreSchemaChangeMode for ignore-schema-change. */
+    public enum IgnoreSchemaChangeMode {
+        INT_TO_STRING;
+
+        private static final Map<String, IgnoreSchemaChangeMode> IGNORE_SCHEMA_CHANGE_MODES =
+                Arrays.stream(IgnoreSchemaChangeMode.values())
+                        .collect(
+                                Collectors.toMap(
+                                        IgnoreSchemaChangeMode::configString, Function.identity()));
+
+        public static IgnoreSchemaChangeMode check(String option) {
+            IgnoreSchemaChangeMode ignoreSchemaChangeMode = IGNORE_SCHEMA_CHANGE_MODES.get(option);
+            if (ignoreSchemaChangeMode == null) {
+                throw new UnsupportedOperationException(
+                        "Unsupported ignore schema change option: " + option);
+            }
+            return ignoreSchemaChangeMode;
+        }
+
+        public static Set<IgnoreSchemaChangeMode> getIgnoreOptions(Options options) {
+            Set<IgnoreSchemaChangeMode> modes = new HashSet<>();
+
+            if (options.containsKey(IGNORE_SCHEMA_CHANGE.key())) {
+                String[] split = options.getString(IGNORE_SCHEMA_CHANGE).split(",");
+                modes =
+                        Arrays.stream(split)
+                                .map(String::trim)
+                                .map(String::toLowerCase)
+                                .map(IgnoreSchemaChangeMode::check)
+                                .collect(Collectors.toSet());
+            }
+            return modes;
         }
 
         public String configString() {
