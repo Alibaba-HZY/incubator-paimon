@@ -19,7 +19,6 @@
 package org.apache.paimon.format.orc.reader;
 
 import org.apache.paimon.data.Timestamp;
-import org.apache.paimon.utils.DateTimeUtils;
 
 import org.apache.hadoop.hive.ql.exec.vector.ColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.TimestampColumnVector;
@@ -41,6 +40,7 @@ public class OrcTimestampColumnVector extends AbstractOrcColumnVector
     @Override
     public Timestamp getTimestamp(int i, int precision) {
         int index = vector.isRepeating ? 0 : i;
-        return DateTimeUtils.toInternal(vector.time[index], vector.nanos[index] % 1_000_000);
+        java.sql.Timestamp sqlTimestamp = new java.sql.Timestamp(vector.time[index]);
+        return Timestamp.fromSQLTimestamp(sqlTimestamp);
     }
 }
