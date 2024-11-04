@@ -22,9 +22,6 @@ import org.apache.paimon.CoreOptions;
 import org.apache.paimon.options.ConfigOption;
 import org.apache.paimon.options.Options;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Collections;
@@ -68,7 +65,7 @@ public class WriterConf implements Serializable {
         this.ignoreSchemaChangeModes = getIgnoreOptions(options);
     }
 
-    public Set<IgnoreSchemaChangeMode> ignoreSchemaChangeMapping() {
+    public Set<IgnoreSchemaChangeMode> ignoreSchemaChangeModes() {
         return ignoreSchemaChangeModes;
     }
 
