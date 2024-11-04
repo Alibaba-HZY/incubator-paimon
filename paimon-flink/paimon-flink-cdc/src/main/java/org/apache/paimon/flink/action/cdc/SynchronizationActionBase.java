@@ -198,12 +198,14 @@ public abstract class SynchronizationActionBase extends ActionBase {
             Identifier identifier,
             FileStoreTable table,
             Schema newSchema,
-            Set<WriterConf.AlterSchemaMode> alterSchemaModes) {
+            Set<WriterConf.AlterSchemaMode> alterSchemaModes,
+            Set<WriterConf.IgnoreSchemaChangeMode> ignoreSchemaChangeModes) {
         TableSchema oldSchema = table.schema();
         List<DataField> newSchemaFields = newSchema.fields();
         List<SchemaChange> schemaFieldsChanges =
-                CdcActionCommonUtils.extractSchemaChanges(table, newSchemaFields, alterSchemaModes);
-        CdcActionCommonUtils.applySchemaChange(oldSchema, schemaFieldsChanges, identifier, catalog);
+                CdcSchemaCommonUtils.extractSchemaChanges(table, newSchemaFields, alterSchemaModes);
+        CdcSchemaCommonUtils.applySchemaChange(
+                oldSchema, schemaFieldsChanges, identifier, catalog, ignoreSchemaChangeModes);
 
         try {
             table = (FileStoreTable) catalog.getTable(identifier);

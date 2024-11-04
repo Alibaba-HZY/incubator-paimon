@@ -18,26 +18,19 @@
 
 package org.apache.paimon.flink.action.cdc;
 
-import org.apache.paimon.catalog.Catalog;
 import org.apache.paimon.catalog.Identifier;
 import org.apache.paimon.flink.action.MultiTablesSinkMode;
 import org.apache.paimon.flink.sink.cdc.UpdatedDataFieldsProcessFunction;
-import org.apache.paimon.flink.sink.cdc.UpdatedDataFieldsProcessFunctionBase;
 import org.apache.paimon.schema.Schema;
-import org.apache.paimon.schema.SchemaChange;
 import org.apache.paimon.schema.TableSchema;
-import org.apache.paimon.table.FileStoreTable;
 import org.apache.paimon.types.DataField;
 import org.apache.paimon.types.DataType;
-import org.apache.paimon.types.RowType;
-import org.apache.paimon.utils.Preconditions;
 
 import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.configuration.Configuration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -392,135 +385,5 @@ public class CdcActionCommonUtils {
                 Arrays.stream(configOptions)
                         .map(ConfigOption::key)
                         .collect(Collectors.joining(",")));
-    }
-
-    public static List<SchemaChange> extractSchemaChanges(
-            FileStoreTable oldTable,
-            List<DataField> newDataFields,
-            Set<WriterConf.AlterSchemaMode> alterSchemaModes) {
-        RowType oldRowType = oldTable.schema().logicalRowType();
-        Map<String, DataField> tmpOldFields = new HashMap<>();
-        for (DataField oldField : oldRowType.getFields()) {
-            tmpOldFields.put(oldField.name(), oldField);
-        }
-
-        List<SchemaChange> result = new ArrayList<>();
-        for (DataField newField : newDataFields) {
-            String newFieldName = newField.name();
-            if (tmpOldFields.containsKey(newFieldName)) {
-                if (alterSchemaModes.contains(WriterConf.AlterSchemaMode.UPDATE_COLUMN)) {
-                    DataField oldField = tmpOldFields.get(newField.name());
-                    // we compare by ignoring nullable, because partition keys and primary keys
-                    // might be
-                    // nullable in source database, but they can't be null in Paimon
-                    if (oldField.type().equalsIgnoreNullable(newField.type())) {
-                        // update column comment
-                        if (newField.description() != null
-                                && !newField.description().equals(oldField.description())) {
-                            result.add(
-                                    SchemaChange.updateColumnComment(
-                                            new String[] {newField.name()},
-                                            newField.description()));
-                        }
-                    } else {
-                        // update column type
-                        result.add(SchemaChange.updateColumnType(newField.name(), newField.type()));
-                        // update column comment
-                        if (newField.description() != null) {
-                            result.add(
-                                    SchemaChange.updateColumnComment(
-                                            new String[] {newField.name()},
-                                            newField.description()));
-                        }
-                    }
-                }
-
-                tmpOldFields.remove(newFieldName);
-            } else {
-                if (alterSchemaModes.contains(WriterConf.AlterSchemaMode.ADD_COLUMN)) {
-                    // add column
-                    result.add(
-                            SchemaChange.addColumn(
-                                    newField.name(),
-                                    newField.type(),
-                                    newField.description(),
-                                    null));
-                }
-            }
-        }
-
-        if (tmpOldFields.size() > 0) {
-            LOG.warn(
-                    "Cannot find Paimon fields '{}' in Source table '{}'.",
-                    tmpOldFields,
-                    oldTable.name());
-            if (alterSchemaModes.contains(WriterConf.AlterSchemaMode.ADD_COLUMN)) {
-                throw new IllegalArgumentException(
-                        "Please check paimon table '"
-                                + oldTable.name()
-                                + "' fields '"
-                                + tmpOldFields
-                                + "' when use add-column mode, we can not find it in source table.");
-            }
-        }
-
-        return result;
-    }
-
-    public static void applySchemaChange(
-            TableSchema oldSchema,
-            List<SchemaChange> schemaChanges,
-            Identifier identifier,
-            Catalog catalog) {
-        if (schemaChanges == null || schemaChanges.size() == 0) {
-            return;
-        }
-        List<SchemaChange> schemaChangesChecked = new ArrayList<>();
-        for (SchemaChange schemaChange : schemaChanges) {
-            if (schemaChange instanceof SchemaChange.AddColumn) {
-                schemaChangesChecked.add(schemaChange);
-            } else if (schemaChange instanceof SchemaChange.UpdateColumnType) {
-                SchemaChange.UpdateColumnType updateColumnType =
-                        (SchemaChange.UpdateColumnType) schemaChange;
-                int idx = oldSchema.fieldNames().indexOf(updateColumnType.fieldName());
-                Preconditions.checkState(
-                        idx >= 0,
-                        "Field name "
-                                + updateColumnType.fieldName()
-                                + " does not exist in table. This is unexpected.");
-                DataType oldType = oldSchema.fields().get(idx).type();
-                DataType newType = updateColumnType.newDataType();
-                switch (UpdatedDataFieldsProcessFunctionBase.canConvert(oldType, newType)) {
-                    case CONVERT:
-                        schemaChangesChecked.add(schemaChange);
-                        break;
-                    case EXCEPTION:
-                        throw new UnsupportedOperationException(
-                                String.format(
-                                        "Cannot convert field %s from type %s to %s of Paimon table %s.",
-                                        updateColumnType.fieldName(),
-                                        oldType,
-                                        newType,
-                                        identifier.getFullName()));
-                }
-            } else if (schemaChange instanceof SchemaChange.UpdateColumnComment) {
-                schemaChangesChecked.add(schemaChange);
-            } else {
-                throw new UnsupportedOperationException(
-                        "Unsupported schema change class "
-                                + schemaChange.getClass().getName()
-                                + ", content "
-                                + schemaChange);
-            }
-        }
-
-        LOG.info("Schema will be changed, {} columns affected.", schemaChangesChecked.size());
-        try {
-            catalog.alterTable(identifier, schemaChangesChecked, false);
-        } catch (Catalog.TableNotExistException
-                | Catalog.ColumnAlreadyExistException
-                | Catalog.ColumnNotExistException e) {
-            throw new RuntimeException("This is unexpected.", e);
-        }
     }
 }
