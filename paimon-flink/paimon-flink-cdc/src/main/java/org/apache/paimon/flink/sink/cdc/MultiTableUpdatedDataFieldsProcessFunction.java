@@ -20,6 +20,7 @@ package org.apache.paimon.flink.sink.cdc;
 
 import org.apache.paimon.catalog.Catalog;
 import org.apache.paimon.catalog.Identifier;
+import org.apache.paimon.flink.action.cdc.WriterConf;
 import org.apache.paimon.schema.SchemaChange;
 import org.apache.paimon.schema.SchemaManager;
 import org.apache.paimon.table.FileStoreTable;
@@ -53,6 +54,11 @@ public class MultiTableUpdatedDataFieldsProcessFunction
 
     public MultiTableUpdatedDataFieldsProcessFunction(Catalog.Loader catalogLoader) {
         super(catalogLoader);
+    }
+
+    public MultiTableUpdatedDataFieldsProcessFunction(
+            Catalog.Loader catalogLoader, WriterConf writerConfig) {
+        super(catalogLoader, writerConfig);
     }
 
     @Override
