@@ -52,8 +52,8 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static org.apache.paimon.flink.action.MultiTablesSinkMode.DIVIDED;
-import static org.apache.paimon.flink.action.cdc.CdcActionCommonUtils.schemaCompatible;
 import static org.apache.paimon.flink.action.cdc.CdcActionCommonUtils.tableList;
+import static org.apache.paimon.flink.action.cdc.CdcSchemaCommonUtils.schemaCompatible;
 import static org.apache.paimon.flink.action.cdc.ExtraColumnUtils.buildExtraColumns;
 import static org.apache.paimon.utils.Preconditions.checkArgument;
 
@@ -144,6 +144,9 @@ public class MySqlSyncDatabaseAction extends SyncDatabaseActionBase {
 
         Set<WriterConf.AlterSchemaMode> alterSchemaModes = writerConf.alterSchemaModes();
         LOG.info("alterSchemaModes:{}", alterSchemaModes);
+        Set<WriterConf.IgnoreSchemaChangeMode> ignoreSchemaChangeModes =
+                writerConf.ignoreSchemaChangeModes();
+        LOG.info("ignoreSchemaChangeModes:{}", ignoreSchemaChangeModes);
 
         for (JdbcTableInfo tableInfo : jdbcTableInfos) {
             Identifier identifier =
@@ -173,9 +176,16 @@ public class MySqlSyncDatabaseAction extends SyncDatabaseActionBase {
                 Supplier<String> errMsg =
                         incompatibleMessage(table.schema(), tableInfo, identifier);
                 if (alterSchemaModes.size() > 0) {
-                    table = alterTable(identifier, table, fromMySql, alterSchemaModes);
+                    table =
+                            alterTable(
+                                    identifier,
+                                    table,
+                                    fromMySql,
+                                    alterSchemaModes,
+                                    ignoreSchemaChangeModes);
                 }
-                if (shouldMonitorTable(table.schema(), fromMySql, errMsg)) {
+                if (shouldMonitorTable(
+                        table.schema(), fromMySql, ignoreSchemaChangeModes, errMsg)) {
                     table = alterTableOptions(identifier, table);
                     tables.add(table);
                     monitoredTables.addAll(tableInfo.identifiers());
@@ -234,8 +244,11 @@ public class MySqlSyncDatabaseAction extends SyncDatabaseActionBase {
     }
 
     private boolean shouldMonitorTable(
-            TableSchema tableSchema, Schema mySqlSchema, Supplier<String> errMsg) {
-        if (schemaCompatible(tableSchema, mySqlSchema.fields())) {
+            TableSchema tableSchema,
+            Schema mySqlSchema,
+            Set<WriterConf.IgnoreSchemaChangeMode> ignoreSchemaChangeModes,
+            Supplier<String> errMsg) {
+        if (schemaCompatible(tableSchema, mySqlSchema.fields(), ignoreSchemaChangeModes)) {
             return true;
         } else if (ignoreIncompatible) {
             LOG.warn(errMsg.get() + "This table will be ignored.");

@@ -110,7 +110,14 @@ public class CdcRecordUtils {
                                 + type
                                 + ". Waiting for schema update.",
                         e);
-                return Optional.empty();
+                switch (type.getTypeRoot()) {
+                    case TIME_WITHOUT_TIME_ZONE:
+                    case TIMESTAMP_WITH_LOCAL_TIME_ZONE:
+                    case TIMESTAMP_WITHOUT_TIME_ZONE:
+                        continue;
+                    default:
+                        return Optional.empty();
+                }
             }
         }
         return Optional.of(genericRow);
