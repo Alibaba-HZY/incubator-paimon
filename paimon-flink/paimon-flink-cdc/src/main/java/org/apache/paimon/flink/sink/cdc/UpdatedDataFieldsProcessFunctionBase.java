@@ -38,6 +38,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -83,7 +84,11 @@ public abstract class UpdatedDataFieldsProcessFunctionBase<I, O> extends Process
     @Override
     public void open(Configuration parameters) {
         this.catalog = catalogLoader.load();
-        this.ignoreSchemaChangeModes = writerConfig.ignoreSchemaChangeModes();
+        if (writerConfig != null) {
+            this.ignoreSchemaChangeModes = writerConfig.ignoreSchemaChangeModes();
+        } else {
+            this.ignoreSchemaChangeModes = Collections.emptySet();
+        }
     }
 
     protected void applySchemaChange(
